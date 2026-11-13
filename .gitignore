@@ -1,0 +1,10 @@
+codex-logs/
+node_modules/
+.pwvenv/
+__pycache__/
+*.pyc
+tests/browser-verify-output.txt
+screenshots/*
+!screenshots/10_spread3_laser3.png
+!screenshots/14_stage_clear.png
+!screenshots/17_boss_stage3.png

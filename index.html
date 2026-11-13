@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- 游戏入口：按依赖顺序加载本地脚本，并提供固定逻辑尺寸的画布。 -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NEON VECTOR · 霓虹航线</title>
+    <link rel="stylesheet" href="css/style.css">
+  </head>
+  <body>
+    <main>
+      <canvas
+        id="game"
+        width="480"
+        height="800"
+        aria-label="霓虹航线，竖版双人射击游戏"
+      ></canvas>
+    </main>
+    <script src="js/input.js"></script>
+    <script src="js/weapons.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/boss.js"></script>
+    <script src="js/pickups.js"></script>
+    <script src="js/stages.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,34 @@
+/* 页面布局：保持画布等比缩放、居中及现有背景效果。 */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #030610;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  font-family: monospace;
+}
+
+main {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+canvas {
+  display: block;
+  width: min(100vw, 60vh);
+  height: min(100vh, 166.6667vw);
+  box-shadow: 0 0 70px #12294c;
+  touch-action: none;
+}
