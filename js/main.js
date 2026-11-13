@@ -87,6 +87,7 @@
     /* 创建单人或双人队伍并开始关卡。 */
     start(mode) {
       this.mode = mode;
+      this.difficultyPower = 0;
       this.players = Array.from({
         length: mode
       }, (_, i) => NV.makePlayer(i, mode));
@@ -188,6 +189,7 @@
           NV.beginStage(this, this.stage + 1);
         }
       } else if (this.state === 'playing') {
+        NV.updateDifficulty(this, deltaTime);
         NV.updateStage(this, deltaTime);
         NV.updateShots(this, deltaTime);
         NV.updateEnemies(this, deltaTime);
@@ -215,6 +217,7 @@
         bossHp: game.boss ? game.boss.hp : 0,
         enemies: game.enemies.length,
         pickups: game.pickups.length,
+        difficulty: Object.freeze(NV.difficulty(game)),
         players: Object.freeze(game.players.map(player => Object.freeze({
           weapon: player.weapon,
           level: player.level,

@@ -15,11 +15,11 @@ NV.makePlayer = (id, mode) => ({
     L: 1,
     M: 1
   },
-  lives: 3,
-  bombs: 3,
+  lives: NV.DIFFICULTY.player.lives,
+  bombs: NV.DIFFICULTY.player.bombs,
   score: 0,
   cooldown: .3,
-  invincible: 2,
+  invincible: NV.DIFFICULTY.player.invincible,
   shield: 0
 });
 /* 处理护盾、扣命、降级和重生无敌。 */
@@ -29,14 +29,14 @@ NV.hitPlayer = function (game, player) {
   }
   if (player.shield > 0) {
     player.shield = 0;
-    player.invincible = 1;
+    player.invincible = NV.DIFFICULTY.player.shieldInvincible;
     game.spark(player.x, player.y, player.color, 25);
     return;
   }
   player.lives--;
   player.level = Math.max(1, player.level - 1);
   player.levels[player.weapon] = player.level;
-  player.invincible = 2.5;
+  player.invincible = NV.DIFFICULTY.player.invincible;
   game.spark(player.x, player.y, player.color, 35);
   player.x = game.mode === 2 ? player.id ? 320 : 160 : 240;
   player.y = 690;
@@ -62,19 +62,19 @@ NV.updatePlayers = function (game, deltaTime) {
       game.bullets = [];
       game.flash = .65;
       for (let enemy of game.enemies.concat(game.boss ? [game.boss] : [])) {
-        enemy.hp -= 95;
+        enemy.hp -= NV.DIFFICULTY.player.bombDamage;
         enemy.lastHit = player.id;
       }
       game.toast(240, 430, 'NOVA BOMB', '#ffffff');
     }
     for (let bullet of game.bullets) {
-      if (!bullet.dead && Math.hypot(player.x - bullet.x, player.y - bullet.y) < bullet.r + 5) {
+      if (!bullet.dead && Math.hypot(player.x - bullet.x, player.y - bullet.y) < bullet.r + NV.DIFFICULTY.player.bulletRadius) {
         NV.hitPlayer(game, player);
         bullet.dead = true;
       }
     }
     for (let enemy of game.enemies.concat(game.boss ? [game.boss] : [])) {
-      if (enemy.hp > 0 && Math.hypot(player.x - enemy.x, player.y - enemy.y) < enemy.r + 9) {
+      if (enemy.hp > 0 && Math.hypot(player.x - enemy.x, player.y - enemy.y) < enemy.r + NV.DIFFICULTY.player.enemyRadius) {
         NV.hitPlayer(game, player);
       }
     }

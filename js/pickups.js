@@ -13,19 +13,23 @@ NV.pickupColors = {
 };
 /* 生成指定类型或随机类型的道具。 */
 NV.drop = function (game, x, y, type) {
-  let types = ['N', 'S', 'L', 'M', 'H', 'V', 'B', 'F'];
+  const types = NV.DIFFICULTY.pickup.types;
+  const first = game.stage === 1 && !game.firstDrop && !type;
+  if (first) { type = game.players.find(p => p.lives > 0)?.weapon || 'N'; game.firstDrop = true; }
   game.pickups.push({
     x,
     y,
     type: type || types[Math.floor(Math.random() * types.length)],
+    first,
     t: 0
   });
 };
 /* 将附近道具吸向存活玩家，并应用拾取效果。 */
 NV.updatePickups = function (game, deltaTime) {
+  const c = NV.DIFFICULTY.pickup;
   for (let pickup of game.pickups) {
     pickup.t += deltaTime;
-    pickup.y += 40 * deltaTime;
+    pickup.y += c.speed * deltaTime;
     let player = game.players
       .filter(player => player.lives > 0)
       .sort((player, otherPlayer) =>
@@ -36,16 +40,16 @@ NV.updatePickups = function (game, deltaTime) {
       continue;
     }
     let distance = Math.hypot(player.x - pickup.x, player.y - pickup.y);
-    if (distance < 110 && distance > 0) {
-      pickup.x += (player.x - pickup.x) / distance * 210 * deltaTime;
-      pickup.y += (player.y - pickup.y) / distance * 210 * deltaTime;
+    if (distance < (pickup.first ? c.firstMagnetRadius : c.magnetRadius) && distance > 0) {
+      pickup.x += (player.x - pickup.x) / distance * c.magnetSpeed * deltaTime;
+      pickup.y += (player.y - pickup.y) / distance * c.magnetSpeed * deltaTime;
     }
-    if (distance < 25) {
+    if (distance < c.collectRadius) {
       let label;
       if ('NSLM'.includes(pickup.type)) {
         if (player.weapon === pickup.type) {
           if (player.level === 3) {
-            game.award(player.id, 500);
+            game.award(player.id, c.maxBonus);
             label = 'MAX +500';
           } else {
             player.level++;
@@ -57,7 +61,7 @@ NV.updatePickups = function (game, deltaTime) {
         }
         label = label || pickup.type + ' WEAPON LV.' + player.level;
       } else if (pickup.type === 'H') {
-        player.shield = 12;
+        player.shield = c.shield;
         label = 'SHIELD 12s';
       } else if (pickup.type === 'V') {
         player.lives++;
@@ -66,7 +70,7 @@ NV.updatePickups = function (game, deltaTime) {
         player.bombs++;
         label = 'BOMB +1';
       } else {
-        game.award(player.id, 1000);
+        game.award(player.id, c.score);
         label = 'SCORE +1000';
       }
       game.toast(player.x, player.y - 35, label, NV.pickupColors[pickup.type]);

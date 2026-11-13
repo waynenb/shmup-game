@@ -7,7 +7,7 @@ NV.spawnBoss = function (game) {
     return;
   }
   game.enemies = [];
-  let hp = 520 + game.stage * 280;
+  let hp = NV.difficulty(game).bossHp;
   game.boss = {
     x: 240,
     y: -90,
@@ -27,42 +27,44 @@ NV.updateBoss = function (game, deltaTime) {
   if (!boss) {
     return;
   }
+  const c = NV.DIFFICULTY.bossMotion, tier = NV.DIFFICULTY.boss[game.stage - 1];
   boss.t += deltaTime;
-  boss.y = Math.min(170, boss.y + 90 * deltaTime);
-  boss.x = 240 + Math.sin(boss.t * (.6 + game.stage * .15)) * (90 + game.stage * 12);
-  boss.phase = boss.hp / boss.maxHp < .32 ? 3 : boss.hp / boss.maxHp < .66 ? 2 : 1;
+  boss.y = Math.min(170, boss.y + c.entry * deltaTime);
+  boss.x = 240 + Math.sin(boss.t * (c.frequency + game.stage * c.stageFrequency)) * (c.amplitude + game.stage * c.stageAmplitude);
+  boss.phase = boss.hp / boss.maxHp < c.thresholds[1] ? 3 : boss.hp / boss.maxHp < c.thresholds[0] ? 2 : 1;
   boss.fire -= deltaTime;
   if (boss.fire <= 0 && boss.y > 100) {
-    boss.fire = .85 - boss.phase * .14 - game.stage * .05;
-    let speed = 100 + game.stage * 22 + boss.phase * 13;
+    const d = NV.difficulty(game);
+    boss.fire = d.bossFireInterval;
+    let speed = d.bossBulletSpeed;
     if (game.stage === 1) {
-      for (let i = 0; i < 7 + boss.phase * 2; i++) {
-        NV.enemyBullet(game, boss.x, boss.y + 30, Math.PI / 2 + (i - (6 + boss.phase * 2) / 2) * .18, speed);
+      for (let i = 0; i < d.bossVolley; i++) {
+        NV.enemyBullet(game, boss.x, boss.y + 30, Math.PI / 2 + (i - (d.bossVolley - 1) / 2) * c.fanSpread, speed);
       }
     } else if (game.stage === 2) {
-      let count = 12 + boss.phase * 4;
+      let count = d.bossVolley;
       for (let i = 0; i < count; i++) {
-        NV.enemyBullet(game, boss.x, boss.y, Math.PI * 2 * i / count + boss.t * .65, speed, 4, '#c18aff');
+        NV.enemyBullet(game, boss.x, boss.y, Math.PI * 2 * i / count + boss.t * c.rotation, speed, 4, '#c18aff');
       }
     } else {
       for (let side of [-1, 1]) {
-        for (let i = 0; i < 9 + boss.phase * 2; i++) {
+        for (let i = 0; i < d.bossVolley; i++) {
           NV.enemyBullet(
             game, boss.x + side * 38, boss.y + 18,
-            Math.PI / 2 + Math.sin(boss.t) * .5 + (i - (8 + boss.phase * 2) / 2) * .15,
+            Math.PI / 2 + Math.sin(boss.t) * c.sway + (i - (d.bossVolley - 1) / 2) * c.finalSpread,
             speed, 4, '#ffbb64'
           );
         }
       }
     }
-    if (boss.phase >= 2) {
+    if (tier.aimed && boss.phase >= 2) {
       for (let player of game.players.filter(player => player.lives > 0)) {
-        NV.enemyBullet(game, boss.x, boss.y, Math.atan2(player.y - boss.y, player.x - boss.x), speed * 1.5, 6);
+        NV.enemyBullet(game, boss.x, boss.y, Math.atan2(player.y - boss.y, player.x - boss.x), speed * c.aimedSpeed, 6);
       }
     }
   }
   if (boss.hp <= 0) {
-    game.award(boss.lastHit, 3000 * game.stage);
+    game.award(boss.lastHit, c.reward * game.stage);
     game.spark(boss.x, boss.y, game.theme.accent, 90);
     ['S', 'L', 'M', 'H', 'B', 'F'].forEach((type, i) => NV.drop(game, 135 + i * 42, 190 + i % 2 * 30, type));
     game.boss = null;

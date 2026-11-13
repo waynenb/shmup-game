@@ -27,6 +27,9 @@ NV.beginStage = function (game, stage) {
   game.theme = NV.themes[stage - 1];
   game.stageTime = 0;
   game.wave = 0;
+  game.waveCharge = 1;
+  game.firstDrop = false;
+  game.firstSupply = false;
   game.killsWithoutDrop = 0;
   game.enemies = [];
   game.boss = null;
@@ -36,21 +39,28 @@ NV.beginStage = function (game, stage) {
   game.state = 'intro';
   game.stateTime = 0;
   game.players.forEach(player => {
-    player.invincible = Math.max(3, player.invincible);
+    player.invincible = Math.max(NV.DIFFICULTY.player.invincible, player.invincible);
   });
 };
 /* 按时间生成波次，清场后召唤旗舰。 */
 NV.updateStage = function (game, deltaTime) {
   game.stageTime += deltaTime;
-  let interval = 3.5 - game.stage * .35;
-  if (game.stageTime > 2 + game.wave * interval && game.wave < 10 + game.stage * 2) {
-    let count = 3 + game.stage;
+  const d = NV.difficulty(game), c = NV.DIFFICULTY.stages[game.stage - 1];
+  game.waveCharge += deltaTime / d.waveInterval;
+  if (game.stage === 1 && !game.firstSupply && game.stageTime >= NV.DIFFICULTY.pickup.firstSupplyTime) {
+    const player = game.players.find(p => p.lives > 0);
+    if (player) NV.drop(game, player.x, player.y - 80, player.weapon);
+    game.firstSupply = true;
+  }
+  if (game.stageTime > 2 && game.waveCharge >= 1 && game.wave < c.waves) {
+    game.waveCharge -= 1;
+    let count = NV.smoothCount(d.count);
     for (let i = 0; i < count; i++) {
-      NV.spawnEnemy(game, (game.wave + i) % 3, 45 + i * 390 / (count - 1));
+      NV.spawnEnemy(game, (game.wave + i) % 3, count <= 1 ? 240 : 45 + i * 390 / (count - 1));
     }
     game.wave++;
   }
-  if (game.wave >= 10 + game.stage * 2 && game.enemies.length === 0 && !game.boss) {
+  if (game.wave >= c.waves && game.enemies.length === 0 && !game.boss) {
     NV.spawnBoss(game);
   }
 };

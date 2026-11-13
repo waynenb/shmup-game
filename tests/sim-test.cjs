@@ -82,14 +82,14 @@ test('snapshot schema, immutability, detached values and legacy facade', () => {
   const { api, game, tap } = load();
   assert.equal(api.state, 'menu');
   assert.deepEqual(Object.keys(api.snapshot()), [
-    'state', 'stage', 'mode', 'bossActive', 'bossHp', 'enemies', 'pickups', 'players'
+    'state', 'stage', 'mode', 'bossActive', 'bossHp', 'enemies', 'pickups', 'difficulty', 'players'
   ]);
   assert.equal(api.snapshot().bossHp, 0);
   tap('Digit2');
   const snapshot = api.snapshot();
   assert.deepEqual(Object.keys(snapshot.players[0]), ['weapon', 'level', 'lives', 'bombs', 'score', 'shield']);
   assert.equal(snapshot.players.length, 2);
-  for (const value of [snapshot, snapshot.players, ...snapshot.players]) assert.ok(Object.isFrozen(value));
+  for (const value of [snapshot, snapshot.players, snapshot.difficulty, ...snapshot.players]) assert.ok(Object.isFrozen(value));
   assert.throws(() => { snapshot.players[0].lives = 99; }, TypeError);
   assert.throws(() => { snapshot.stage = 3; }, TypeError);
   assert.throws(() => { snapshot.players.push({}); }, { name: 'TypeError' });
@@ -155,7 +155,7 @@ test('debug URL gating, stage limits and debug keys', () => {
   assert.equal(sim.api.pickups, 16);
   sim.tap('KeyB');
   assert.equal(sim.api.boss, true);
-  assert.equal(sim.api.snapshot().bossHp, 1080);
+  assert.equal(sim.api.snapshot().bossHp, sim.nv.DIFFICULTY.boss[1].hp * sim.nv.DIFFICULTY.coop.hp);
   sim.tap('KeyK');
   assert.equal(sim.api.state, 'clear');
   sim.tap('KeyN');
@@ -216,6 +216,7 @@ test('shot collision, homing and score ownership', () => {
 
 test('enemies aim at nearest living player and bosses target both survivors', () => {
   const { nv, game } = load('?debug=1&mode=2');
+  nv.DIFFICULTY.curve.volley = [1, 1];
   const [first, second] = game.players;
   Object.assign(first, { x: 80, y: 650 });
   Object.assign(second, { x: 400, y: 650 });
@@ -225,9 +226,9 @@ test('enemies aim at nearest living player and bosses target both survivors', ()
       game.bullets = [];
       nv.spawnEnemy(game, type, x);
       const enemy = game.enemies[0];
-      Object.assign(enemy, { y: 200, fire: 0 });
+      Object.assign(enemy, { y: 200, fire: 0, armed: true });
       nv.updateEnemies(game, 0);
-      const bullet = game.bullets[type === 2 ? 1 : 0];
+      const bullet = game.bullets[Math.floor(game.bullets.length / 2)];
       assert.ok(Math.abs(Math.atan2(bullet.vy, bullet.vx) -
         Math.atan2(target.y - enemy.y, target.x - enemy.x)) < 1e-10);
     }
@@ -236,7 +237,7 @@ test('enemies aim at nearest living player and bosses target both survivors', ()
   game.enemies = [];
   game.bullets = [];
   nv.spawnEnemy(game, 0, first.x);
-  Object.assign(game.enemies[0], { y: 200, fire: 0 });
+  Object.assign(game.enemies[0], { y: 200, fire: 0, armed: true });
   nv.updateEnemies(game, 0);
   assert.ok(game.bullets[0].vx > 0, 'Dead nearest player must be ignored');
   second.lives = 0;
@@ -250,6 +251,7 @@ test('enemies aim at nearest living player and bosses target both survivors', ()
     nv.spawnBoss(game);
     Object.assign(game.boss, { y: 170, fire: 0, hp: game.boss.maxHp * .6 });
     nv.updateBoss(game, 0);
+    if (stage === 1) continue;
     const aimed = game.bullets.slice(-2);
     for (const [index, player] of game.players.entries()) {
       assert.ok(Math.abs(Math.atan2(aimed[index].vy, aimed[index].vx) -
@@ -268,25 +270,25 @@ test('opening balance, normal cadence and increasing stage difficulty', () => {
     const small = game.enemies.find(enemy => enemy.type === 0);
     const hp = small.hp;
     game.enemies = [small];
-    Object.assign(small, { y: 200, fire: 0 });
+    Object.assign(small, { y: 200, fire: 0, armed: true });
     nv.updateEnemies(game, 0);
     stats.push({ hp, speed: Math.hypot(game.bullets[0].vx, game.bullets[0].vy), waveSize, interval: small.fire });
     const waveTime = game.stageTime;
     while (game.wave === 1) nv.updateStage(game, .01);
     stats[stage - 1].waveInterval = game.stageTime - waveTime;
   }
-  assert.deepEqual(stats.map(stat => stat.hp), [3, 7, 9]);
+  assert.ok(stats[0].hp < 3);
   for (let i = 1; i < stats.length; i++) {
     assert.ok(stats[i].speed > stats[i - 1].speed);
-    assert.ok(stats[i].waveSize > stats[i - 1].waveSize);
+    assert.ok(stats[i].waveSize >= stats[i - 1].waveSize);
     assert.ok(stats[i].interval < stats[i - 1].interval);
     assert.ok(stats[i].waveInterval < stats[i - 1].waveInterval);
   }
   nv.beginStage(game, 1);
   nv.spawnEnemy(game, 1, 240);
-  assert.equal(game.enemies[0].hp, 3);
+  assert.equal(game.enemies[0].hp, nv.difficulty(game).hp);
   nv.spawnEnemy(game, 2, 240);
-  assert.equal(game.enemies[1].hp, 15);
+  assert.equal(game.enemies[1].hp, nv.difficulty(game).heavyHp);
   const player = game.players[0];
   for (const [weapon, cooldown] of [['N', .14], ['S', .17], ['L', .085], ['M', .29]]) {
     player.weapon = weapon;
@@ -306,7 +308,18 @@ test('opening balance, normal cadence and increasing stage difficulty', () => {
   assert.equal(game.enemies.length, 0, 'Opening small enemy takes three Lv1 hits');
 });
 
-test('30 percent drops, seventh-kill guarantee, reset and escaped enemies', () => {
+test('single-enemy waves spawn at center and nonpositive counts spawn nothing', () => {
+  const { nv, game } = load('?debug=1&mode=2');
+  for (const count of [1, 0, -1]) {
+    nv.beginStage(game, 1);
+    nv.smoothCount = () => count;
+    nv.updateStage(game, 2.01);
+    assert.equal(game.enemies.length, count === 1 ? 1 : 0);
+    if (count === 1) assert.equal(game.enemies[0].x, 240);
+  }
+});
+
+test('configured drops, pity guarantee, first weapon, reset and escaped enemies', () => {
   const { context, nv, game } = load('?debug=1&mode=1');
   function kill() {
     nv.spawnEnemy(game, 0, 240);
@@ -314,22 +327,23 @@ test('30 percent drops, seventh-kill guarantee, reset and escaped enemies', () =
     nv.updateEnemies(game, 0);
   }
   context.nextRandom = () => .99;
-  for (let i = 0; i < 6; i++) kill();
+  for (let i = 0; i < nv.DIFFICULTY.enemy.pity; i++) kill();
   assert.equal(game.pickups.length, 0);
   nv.spawnEnemy(game, 0, 240);
   game.enemies[0].y = 851;
   nv.updateEnemies(game, 0);
-  assert.equal(game.killsWithoutDrop, 6);
+  assert.equal(game.killsWithoutDrop, nv.DIFFICULTY.enemy.pity);
   kill();
   assert.equal(game.pickups.length, 1);
   assert.equal(game.killsWithoutDrop, 0);
   kill();
   assert.equal(game.pickups.length, 1);
-  context.nextRandom = () => .29;
+  assert.equal(game.pickups[0].type, 'N');
+  context.nextRandom = () => nv.difficulty(game).dropRate - .01;
   kill();
   assert.equal(game.pickups.length, 2);
   assert.equal(game.killsWithoutDrop, 0);
-  context.nextRandom = () => .3;
+  context.nextRandom = () => nv.difficulty(game).dropRate + .01;
   kill();
   assert.equal(game.pickups.length, 2);
   assert.equal(game.killsWithoutDrop, 1);
@@ -462,6 +476,86 @@ test('three stages: timed waves, all boss phases, clear and victory', () => {
     sim.tick(230);
   }
   assert.equal(sim.api.state, 'victory');
+});
+
+test('dense continuous monotone curves, stage tiers and eased power', () => {
+  const { nv, game, api } = load('?debug=1&mode=1');
+  const increasing = ['intensity', 'count', 'speed', 'hp', 'heavyHp', 'bulletSpeed', 'volley', 'armed'];
+  const decreasing = ['waveInterval', 'fireInterval', 'dropRate'];
+  function compare(a, b, limit) {
+    for (const key of increasing) { assert.ok(b[key] >= a[key] - 1e-10, key); assert.ok(b[key] - a[key] < limit, key); }
+    for (const key of decreasing) { assert.ok(b[key] <= a[key] + 1e-10, key); assert.ok(a[key] - b[key] < limit, key); }
+  }
+  for (const stage of [1, 2, 3]) {
+    game.stage = stage;
+    for (let power = 0; power <= 1.001; power += .1) {
+      let previous = nv.difficulty(game, 0, power);
+      for (let i = 1; i <= 1000; i++) {
+        const current = nv.difficulty(game, i / 1000, power);
+        compare(previous, current, .1); previous = current;
+      }
+    }
+    for (let i = 0; i <= 1000; i++) {
+      const progress = i / 1000;
+      compare(nv.difficulty(game, progress, 0), nv.difficulty(game, progress, 1), 20);
+      for (let j = 1; j <= 1000; j++) compare(nv.difficulty(game, progress, (j - 1) / 1000), nv.difficulty(game, progress, j / 1000), .02);
+    }
+  }
+  for (const stage of [1, 2]) {
+    game.stage = stage; const end = nv.difficulty(game, 1, 0);
+    game.stage++; assert.ok(nv.difficulty(game, 0, 0).intensity >= end.intensity - 1e-10);
+  }
+  // 同进度、同火力下，关卡档位严格递增。
+  for (let i = 0; i <= 100; i++) {
+    for (let j = 0; j <= 100; j++) {
+      const tiers = [1, 2, 3].map(stage => {
+        game.stage = stage;
+        return nv.difficulty(game, i / 100, j / 100);
+      });
+      for (let k = 1; k < tiers.length; k++) {
+        for (const key of increasing) assert.ok(tiers[k][key] > tiers[k - 1][key], key);
+        for (const key of ['waveInterval', 'fireInterval']) assert.ok(tiers[k][key] < tiers[k - 1][key], key);
+      }
+    }
+  }
+  game.stage = 1;
+  const opening = nv.difficulty(game, 0, 0);
+  assert.equal(opening.count, 2);
+  assert.equal(opening.hp, 2);
+  assert.equal(opening.fireInterval, 6);
+  assert.equal(opening.waveInterval, 6);
+  assert.equal(opening.armed, .25);
+  game.difficultyPower = 0;
+  const player = game.players[0];
+  nv.drop(game, player.x, player.y, 'N'); nv.updatePickups(game, 0);
+  assert.equal(nv.difficulty(game).power, 0);
+  nv.updateDifficulty(game, 1 / 60);
+  const first = nv.difficulty(game).power;
+  assert.ok(first > 0 && first < .01);
+  const snapshot = api.snapshot();
+  for (let i = 0; i < 240; i++) nv.updateDifficulty(game, 1 / 60);
+  assert.ok(nv.difficulty(game).power > first);
+  assert.equal(snapshot.difficulty.power, first);
+});
+
+// 使用原样的新手模拟器做密度回归；统计验收仍另跑 200 种子。
+test('upgraded stage-1 occupancy and stage-3 pressure profiles', () => {
+  let result;
+  const filename = path.join(__dirname, 'novice-sim.cjs');
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), {
+    require, __dirname, URLSearchParams, process: { argv: [process.execPath, filename, root, '1'] },
+    console: { log: json => { result = JSON.parse(json); } }
+  }, { filename });
+  const average = (name, key) => {
+    const windows = result.profile[name].slice(1, 4);
+    assert.deepEqual(windows.map(w => w.window), ['15-30s', '30-45s', '45-60s']);
+    return windows.reduce((sum, w) => sum + w[key], 0) / windows.length;
+  };
+  assert.ok(average('stage1_single_S3', 'avgEnemies') >= 4);
+  assert.ok(average('stage1_single_S3', 'avgEnemyBullets') >= 4);
+  for (const key of ['avgEnemies', 'avgEnemyBullets']) {
+    assert.ok(average('stage3_single_N1', key) > 1.5 * average('stage1_single_N1', key), key);
+  }
 });
 
 test('render every state and fixed-step animation without storage', () => {
