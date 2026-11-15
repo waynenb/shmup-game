@@ -195,10 +195,11 @@
         NV.updateEnemies(this, deltaTime);
         NV.updateBoss(this, deltaTime);
         for (let bullet of this.bullets) {
+          NV.updateBossBullet(this, bullet, deltaTime);
           bullet.x += bullet.vx * deltaTime;
           bullet.y += bullet.vy * deltaTime;
         }
-        this.bullets = this.bullets.filter(bullet => bullet.y > -40 && bullet.y < 840 && bullet.x > -40 && bullet.x < 520);
+        this.bullets = this.bullets.filter(bullet => !bullet.dead && bullet.y > -40 && bullet.y < 840 && bullet.x > -40 && bullet.x < 520);
         NV.updatePlayers(this, deltaTime);
         NV.updatePickups(this, deltaTime);
       }
@@ -215,6 +216,7 @@
         mode: game.mode,
         bossActive: !!game.boss,
         bossHp: game.boss ? game.boss.hp : 0,
+        bossSkill: game.boss ? game.boss.skill : null,
         enemies: game.enemies.length,
         pickups: game.pickups.length,
         difficulty: Object.freeze(NV.difficulty(game)),

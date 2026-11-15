@@ -82,7 +82,7 @@ test('snapshot schema, immutability, detached values and legacy facade', () => {
   const { api, game, tap } = load();
   assert.equal(api.state, 'menu');
   assert.deepEqual(Object.keys(api.snapshot()), [
-    'state', 'stage', 'mode', 'bossActive', 'bossHp', 'enemies', 'pickups', 'difficulty', 'players'
+    'state', 'stage', 'mode', 'bossActive', 'bossHp', 'bossSkill', 'enemies', 'pickups', 'difficulty', 'players'
   ]);
   assert.equal(api.snapshot().bossHp, 0);
   tap('Digit2');
@@ -245,17 +245,13 @@ test('enemies aim at nearest living player and bosses target both survivors', ()
   game.enemies[0].fire = 0;
   nv.updateEnemies(game, 0);
   assert.equal(game.bullets.length, 0);
-  first.lives = second.lives = 3;
-  for (const stage of [1, 2, 3]) {
-    nv.beginStage(game, stage);
-    nv.spawnBoss(game);
-    Object.assign(game.boss, { y: 170, fire: 0, hp: game.boss.maxHp * .6 });
-    nv.updateBoss(game, 0);
-    if (stage === 1) continue;
-    const aimed = game.bullets.slice(-2);
-    for (const [index, player] of game.players.entries()) {
-      assert.ok(Math.abs(Math.atan2(aimed[index].vy, aimed[index].vx) -
-        Math.atan2(player.y - game.boss.y, player.x - game.boss.x)) < 1e-10);
+  first.lives = second.lives = 10;
+  for (const stage of [2,3]) {
+    nv.beginStage(game,stage); nv.spawnBoss(game);
+    Object.assign(game.boss,{y:170,hp:game.boss.maxHp*.2});
+    for (let i=0;i<18000;i++) nv.updateBoss(game,1/60);
+    for (const skill of nv.DIFFICULTY.bossSkills[stage-1].filter(k=>['laser','homing','charge'].includes(k.name))) {
+      assert.deepEqual([...new Set(game.boss.targets.filter(t=>t.skill===skill.name).map(t=>t.id))].sort(),[0,1]);
     }
   }
 });
@@ -378,7 +374,7 @@ test('all pickups, saved levels and maximum level bonus', () => {
   collect('H');
   assert.equal(player.shield, 12);
   collect('V');
-  assert.equal(player.lives, 4);
+  assert.equal(player.lives, 11);
   collect('B');
   assert.equal(player.bombs, 4);
   collect('F');
@@ -393,13 +389,13 @@ test('damage, shield, invincibility, bombs, co-op survival and game over', () =>
   first.shield = 12;
   nv.hitPlayer(game, first);
   assert.equal(first.shield, 0);
-  assert.equal(first.lives, 3);
+  assert.equal(first.lives, 10);
   nv.hitPlayer(game, first);
-  assert.equal(first.lives, 3);
+  assert.equal(first.lives, 10);
   first.invincible = 0;
   first.level = 3;
   nv.hitPlayer(game, first);
-  assert.equal(first.lives, 2);
+  assert.equal(first.lives, 9);
   assert.equal(first.level, 2);
   game.state = 'playing';
   nv.spawnEnemy(game, 2, 100);
@@ -463,7 +459,8 @@ test('three stages: timed waves, all boss phases, clear and victory', () => {
       boss.y = 170;
       sim.nv.updateBoss(sim.game, 1 / 60);
       assert.equal(boss.phase, phase);
-      assert.ok(sim.game.bullets.length > 0);
+      for (let i=0;i<240;i++) sim.nv.updateBoss(sim.game, 1/60);
+      assert.ok(Object.keys(boss.skillsUsed).length > 0);
     }
     boss.hp = 0;
     boss.lastHit = 1;
@@ -555,6 +552,72 @@ test('upgraded stage-1 occupancy and stage-3 pressure profiles', () => {
   assert.ok(average('stage1_single_S3', 'avgEnemyBullets') >= 4);
   for (const key of ['avgEnemies', 'avgEnemyBullets']) {
     assert.ok(average('stage3_single_N1', key) > 1.5 * average('stage1_single_N1', key), key);
+  }
+});
+
+test('boss skills unlock, warn, rotate, respect caps and clean up', () => {
+  for (const stage of [1,2,3]) {
+    const {nv,game} = load('?debug=1&mode=2&god=1');
+    nv.beginStage(game,stage); nv.spawnBoss(game);
+    const b=game.boss; b.y=170;
+    for (const [ratio,phase] of [[1,1],[.5,2],[.2,3]]) {
+      b.hp=b.maxHp*ratio;
+      for(let i=0;i<6000;i++) {
+        const warning=b.warning, before=game.bullets.length;
+        nv.updateBoss(game,1/60);
+        if (warning && warning.left>0) assert.equal(game.bullets.length,before,'Warning cannot emit damage');
+        if (b.warning) {
+          assert.ok(nv.DIFFICULTY.bossSkills[stage-1].find(k=>k.name===b.skill).phase<=phase);
+          if(b.skill==='wall') assert.ok(b.warning.gap>=120);
+        }
+        assert.ok(game.enemies.filter(e=>e.summoned).length<=4);
+        game.bullets=[];
+      }
+    }
+    for(const k of nv.DIFFICULTY.bossSkills[stage-1]) assert.ok(b.skillsUsed[k.name]>0,k.name);
+    if(stage===1) assert.equal(b.targets.length,0,'First boss has no aimed skills');
+    b.hp=0; nv.updateBoss(game,0);
+    assert.equal(game.bullets.length,0); assert.equal(game.enemies.filter(e=>e.summoned).length,0);
+    assert.equal(b.warning,null); assert.equal(b.active,null);
+  }
+});
+
+test('laser warning precedes damage at fixed x, protections and bounded homing', () => {
+  const {nv,game}=load('?debug=1&mode=2');
+  nv.beginStage(game,2); game.state='playing'; nv.spawnBoss(game);
+  const b=game.boss; Object.assign(b,{y:170,hp:b.maxHp*.5,cursor:2,fire:0});
+  nv.updateBoss(game,0); const x=b.warning.x;
+  for(let i=0;i<59;i++) nv.updateBoss(game,1/60);
+  assert.equal(game.bullets.length,0); assert.ok(b.warning);
+  for(let i=0;i<5;i++) nv.updateBoss(game,1/60);
+  assert.ok(game.bullets.some(b=>b.laser));
+  assert.ok(game.bullets.every(b=>b.x===x));
+  const p=game.players[0]; p.x=x; p.y=690;
+  function collision() { const bullet=game.bullets[0]; bullet.x=p.x; bullet.y=p.y; nv.updatePlayers(game,0); }
+  function add() { nv.enemyBullet(game,p.x,p.y,Math.PI/2,650,6); }
+  p.invincible=1; collision(); assert.equal(p.lives,10);
+  add(); p.invincible=0; p.shield=12; collision(); assert.equal(p.shield,0); assert.equal(p.lives,10);
+  add(); p.invincible=0; game.god=true; collision(); assert.equal(p.lives,10);
+  add(); game.god=false; collision(); assert.equal(p.lives,9);
+  const h={x:240,y:200,vx:0,vy:100,homing:true,life:4,turn:.45,speed:100,target:1};
+  nv.updateBossBullet(game,h,1/60);
+  assert.ok(Math.abs(Math.atan2(h.vy,h.vx)-Math.PI/2)<=.45/60+1e-10);
+  nv.updateBossBullet(game,h,4); assert.equal(h.dead,true);
+  game.players.forEach(p=>p.lives=0); b.fire=0; b.active=b.warning=null;
+  nv.updateBoss(game,1); assert.equal(b.warning,null); assert.equal(b.active,null);
+});
+
+test('ten lives HUD, capped V pickup and bonus', () => {
+  const {nv,game}=load('?debug=1&mode=2');
+  const labels=[], hud=[]; game.ctx.fillText=(s,x,y,width)=>{labels.push(s);if(s.includes('♥×')) hud.push({x,width});};
+  nv.render(game);
+  assert.equal(labels.filter(s=>s.includes('♥×10')).length,2);
+  assert.ok(hud[0].x+hud[0].width<hud[1].x);
+  assert.ok(hud[1].x+hud[1].width<=480);
+  for(const p of game.players) {
+    assert.equal(p.lives,10); p.lives=15;
+    nv.drop(game,p.x,p.y,'V'); const score=p.score; nv.updatePickups(game,0);
+    assert.equal(p.lives,15); assert.equal(p.score,score+500);
   }
 });
 

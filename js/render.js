@@ -44,11 +44,12 @@ NV.render = function (game) {
     context.lineTo(480, y);
     context.stroke();
   }
-  const text = (label, x, y, size = 16, color = '#eaf6ff', align = 'center') => {
+  const text = (label, x, y, size = 16, color = '#eaf6ff', align = 'center', maxWidth) => {
     context.font = `${size >= 24 ? 'bold ' : ''}${size}px monospace`;
     context.textAlign = align;
     context.fillStyle = color;
-    context.fillText(label, x, y);
+    if (maxWidth) context.fillText(label, x, y, maxWidth);
+    else context.fillText(label, x, y);
   };
   const glow = (color, blur = 12) => {
     context.shadowColor = color;
@@ -151,7 +152,33 @@ NV.render = function (game) {
     context.fillRect(35, 102, 410 * Math.max(0, boss.hp / boss.maxHp), 8);
     text('BOSS 0' + game.stage + ' / PHASE ' + boss.phase, 240, 96, 11, theme.secondary);
   }
+  if (game.boss && game.boss.warning) {
+    const b = game.boss, w = b.warning;
+    context.save();
+    glow('#ff77df', 16);
+    context.strokeStyle = '#ff77df';
+    context.lineWidth = 2;
+    context.setLineDash([10, 8]);
+    context.beginPath();
+    if (b.skill === 'wall') {
+      context.moveTo(w.x-w.gap/2, 130); context.lineTo(w.x-w.gap/2, 800);
+      context.moveTo(w.x+w.gap/2, 130); context.lineTo(w.x+w.gap/2, 800);
+    } else if (b.skill === 'laser' || b.skill === 'homing') {
+      context.moveTo(w.x, w.y); context.lineTo(w.x, 800);
+    } else if (b.skill === 'charge') {
+      context.moveTo(b.x,b.y); context.lineTo(w.x,NV.DIFFICULTY.skill.chargeY);
+    } else {
+      context.arc(b.x,b.y,b.r+12+Math.sin(b.t*18)*4,0,Math.PI*2);
+    }
+    context.stroke(); context.restore();
+  }
   for (let bullet of game.bullets) {
+    if (bullet.laser || bullet.homing) {
+      context.strokeStyle = bullet.col; context.lineWidth = bullet.laser ? 5 : 2;
+      context.beginPath(); context.moveTo(bullet.x,bullet.y);
+      const length = Math.hypot(bullet.vx,bullet.vy) || 1;
+      context.lineTo(bullet.x-bullet.vx/length*20,bullet.y-bullet.vy/length*20); context.stroke();
+    }
     glow(bullet.col, 9);
     context.fillStyle = bullet.col;
     context.beginPath();
@@ -220,7 +247,7 @@ NV.render = function (game) {
     for (let player of game.players) {
       let x = player.id ? 253 : 16;
       text('P' + (player.id + 1) + '  ' + String(player.score).padStart(7, '0'), x, 22, 15, player.color, 'left');
-      text('♥ ' + player.lives + '   BOMB ' + player.bombs, x, 43, 12, '#daeaff', 'left');
+      text('♥×' + player.lives + '   BOMB ' + player.bombs, x, 43, 12, '#daeaff', 'left', 211);
       text(player.weapon + ' / LV.' + player.level + (player.lives <= 0 ? '  OFFLINE' : ''), x, 62, 12, player.color, 'left');
     }
     text('STAGE 0' + game.stage, 16, 787, 11, theme.accent, 'left');

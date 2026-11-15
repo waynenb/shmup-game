@@ -64,8 +64,13 @@ NV.updatePickups = function (game, deltaTime) {
         player.shield = c.shield;
         label = 'SHIELD 12s';
       } else if (pickup.type === 'V') {
-        player.lives++;
-        label = 'LIFE +1';
+        if (player.lives < NV.DIFFICULTY.player.maxLives) {
+          player.lives++;
+          label = 'LIFE +1';
+        } else {
+          game.award(player.id, c.maxBonus);
+          label = 'LIFE MAX +500';
+        }
       } else if (pickup.type === 'B') {
         player.bombs++;
         label = 'BOMB +1';

@@ -1,4 +1,4 @@
-import asyncio, json
+import asyncio, json, sys
 from playwright.async_api import async_playwright
 import pathlib
 ROOT=pathlib.Path(__file__).resolve().parent.parent
@@ -10,6 +10,8 @@ async def newpage(b,url):
     pg=await b.new_page(viewport={'width':480,'height':800})
     pg.on('console', lambda m: errors.append(f"[{url}] console.{m.type}: {m.text}") if m.type in('error','warning') else None)
     pg.on('pageerror', lambda e: errors.append(f"[{url}] pageerror: {e}"))
+    await pg.route('http://**', lambda route: route.abort())
+    await pg.route('https://**', lambda route: route.abort())
     await pg.goto(url); await pg.wait_for_timeout(500); return pg
 async def give(pg, idx, t, n=1):
     for _ in range(n):
@@ -18,12 +20,48 @@ async def give(pg, idx, t, n=1):
 async def main():
     async with async_playwright() as p:
         b=await p.chromium.launch()
+        # 仅测试脚本注入状态，不添加游戏调试键；file:// 离线验证。
+        pg=await newpage(b,BASE)
+        await pg.keyboard.press('Digit2')
+        assert all(p['lives']==10 for p in (await snap(pg))['players'])
+        hud=await pg.evaluate("""(()=>{const c=NV.game.ctx;c.font='12px monospace';return [10,15].map(n=>c.measureText('♥×'+n+'   BOMB 3').width)})()""")
+        assert max(hud)<211, hud
+        await pg.evaluate("""(()=>{const g=NV.game;g.god=true;g.state='playing';
+          NV.beginStage(g,2);g.state='playing';NV.spawnBoss(g);
+          Object.assign(g.boss,{y:170,hp:g.boss.maxHp*.5,cursor:2,fire:0});
+          NV.updateBoss(g,0);NV.render(g);})()""")
+        assert (await snap(pg))['bossSkill']=='laser'
+        assert await pg.evaluate('NV.game.boss.warning.left>=1 && NV.game.bullets.length===0')
+        await pg.wait_for_timeout(150)
+        assert (await snap(pg))['bossSkill']=='laser'
+        assert await pg.evaluate("NV.game.state==='playing' && NV.game.boss.phase===2 && NV.game.boss.warning.left>0")
+        await pg.screenshot(path=OUT+'boss_skills.png')
+        results['boss_skills']=await snap(pg)
+        await pg.evaluate("""(()=>{const g=NV.game;g.god=true;
+          NV.beginStage(g,3);g.state='playing';NV.spawnBoss(g);
+          Object.assign(g.boss,{y:170,hp:g.boss.maxHp*.2,cursor:4,fire:0});
+          NV.updateBoss(g,0);NV.render(g);})()""")
+        assert (await snap(pg))['bossSkill']=='wall'
+        # 等待真实帧结束预警，再让弹幕墙下移约 0.6 秒。
+        await pg.wait_for_function('NV.game.boss.warning===null')
+        await pg.wait_for_timeout(600)
+        assert (await snap(pg))['bossSkill']=='wall'
+        assert await pg.evaluate("NV.game.state==='playing' && NV.game.boss.phase===3 && NV.game.boss.warning===null && NV.game.bullets.length>0")
+        await pg.screenshot(path=OUT+'boss_skills_wall.png')
+        results['boss_skills_wall']=await snap(pg)
+        results['hud_widths']=hud
+        await pg.close()
+        if '--skills-only' in sys.argv:
+            await b.close()
+            print(json.dumps(results,ensure_ascii=False)); assert not errors, errors
+            return
         # 1 menu + single (normal URL, no debug)
         pg=await newpage(b,BASE)
         await pg.screenshot(path=OUT+"01_menu.png")
         await pg.keyboard.press('Digit1'); await pg.wait_for_timeout(300)
         await pg.keyboard.down('Space')
         s0=await snap(pg)
+        assert s0["players"][0]["lives"]==10
         # move around while firing, wait for natural drop
         found=False
         for i in range(120):

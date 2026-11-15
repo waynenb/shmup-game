@@ -62,9 +62,10 @@ NV.DIFFICULTY = {
     spread: .2,
     pity: 3
   },
-  // 玩家：lives 为命数，bombs 为炸弹数；invincible、shieldInvincible 为无敌秒数；bulletRadius、enemyRadius 为碰撞额外半径（像素），bombDamage 为伤害值。
+  // 玩家：lives 为初始命数，maxLives 为加命上限，bombs 为炸弹数；invincible、shieldInvincible 为无敌秒数；bulletRadius、enemyRadius 为碰撞额外半径（像素），bombDamage 为伤害值。
   player: {
-    lives: 3,
+    lives: 10,
+    maxLives: 15,
     bombs: 3,
     invincible: 2.2,
     shieldInvincible: 1,
@@ -112,6 +113,22 @@ NV.DIFFICULTY = {
       aimed: true
     }
   ],
+  // 技能轮换：phase 为解锁阶段；所有时间单位秒、距离单位像素、速度像素/秒。
+  bossSkills: [
+    [{name:'fan', phase:1}, {name:'ring', phase:1}, {name:'wall', phase:2}, {name:'spiral', phase:3}],
+    [{name:'ring', phase:1}, {name:'spiral', phase:1}, {name:'laser', phase:2}, {name:'summon', phase:2}, {name:'homing', phase:3}],
+    [{name:'sway', phase:1}, {name:'laser', phase:1}, {name:'charge', phase:2}, {name:'homing', phase:2}, {name:'wall', phase:3}, {name:'spiral', phase:3}]
+  ],
+  // 每关技能参数：预警、施放后休息、环弹数量、墙缺口宽度、墙间距、螺旋发数及间隔。
+  skillTiers: [
+    {warning:1.1, rest:2, ring:10, gap:156, spacing:28, spiral:10, pulse:.22, speed:70},
+    {warning:1, rest:1.2, ring:16, gap:132, spacing:26, spiral:16, pulse:.14, speed:120},
+    {warning:1, rest:1, ring:20, gap:120, spacing:24, spiral:22, pulse:.11, speed:150}
+  ],
+  // 激光为预警位置固定的直线弹串；追踪角速度有上限且到期消失；冲锋终点不超过 y=560。
+  skill: {laserDuration:.7, laserPulse:.05, laserSpeed:650, laserRadius:6,
+    homingSpeed:100, homingTurn:.45, homingLife:4, homingCount:2,
+    summonCount:2, summonCap:4, chargeDuration:1.8, chargeY:560},
   // Boss 运动与阶段：entry 为入场速度（像素/秒），frequency、stageFrequency 为角频率及每关增量（弧度/秒），amplitude、stageAmplitude 为振幅及每关增量（像素）。
   bossMotion: {
     entry: 90,
