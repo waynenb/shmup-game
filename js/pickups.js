@@ -72,8 +72,13 @@ NV.updatePickups = function (game, deltaTime) {
           label = 'LIFE MAX +500';
         }
       } else if (pickup.type === 'B') {
-        player.bombs++;
-        label = 'BOMB +1';
+        if (player.bombs < NV.DIFFICULTY.player.maxBombs) {
+          player.bombs++;
+          label = 'BOMB +1';
+        } else {
+          game.award(player.id, c.maxBonus);
+          label = 'BOMB MAX +500';
+        }
       } else {
         game.award(player.id, c.score);
         label = 'SCORE +1000';

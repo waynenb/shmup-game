@@ -62,11 +62,12 @@ NV.DIFFICULTY = {
     spread: .2,
     pity: 3
   },
-  // 玩家：lives 为初始命数，maxLives 为加命上限，bombs 为炸弹数；invincible、shieldInvincible 为无敌秒数；bulletRadius、enemyRadius 为碰撞额外半径（像素），bombDamage 为伤害值。
+  // 玩家：lives 为初始命数，maxLives 为加命上限，bombs 为初始炸弹数，maxBombs 为每名玩家炸弹持有上限；invincible、shieldInvincible 为无敌秒数；bulletRadius、enemyRadius 为碰撞额外半径（像素），bombDamage 为伤害值。
   player: {
     lives: 10,
     maxLives: 15,
     bombs: 3,
+    maxBombs: 5,
     invincible: 2.2,
     shieldInvincible: 1,
     bulletRadius: 2.5,

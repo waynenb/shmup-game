@@ -16,7 +16,7 @@ NV.makePlayer = (id, mode) => ({
     M: 1
   },
   lives: NV.DIFFICULTY.player.lives,
-  bombs: NV.DIFFICULTY.player.bombs,
+  bombs: Math.min(NV.DIFFICULTY.player.bombs, NV.DIFFICULTY.player.maxBombs),
   score: 0,
   cooldown: .3,
   invincible: NV.DIFFICULTY.player.invincible,

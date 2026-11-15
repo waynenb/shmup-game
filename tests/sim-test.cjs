@@ -381,6 +381,57 @@ test('all pickups, saved levels and maximum level bonus', () => {
   assert.equal(player.score, 1500);
 });
 
+test('bomb caps, full bonus, independent co-op inventory and opening clamp', () => {
+  for (const mode of [1, 2]) {
+    const { nv, game } = load('?debug=1&mode=' + mode);
+    assert.equal(nv.DIFFICULTY.player.maxBombs, 5);
+    assert.equal(nv.DIFFICULTY.player.bombs, 3);
+    const labels = [];
+    game.toast = (x, y, label) => labels.push(label);
+    for (const player of game.players) {
+      assert.equal(player.bombs, 3);
+      assert.ok(player.bombs <= 5);
+      const other = game.players.find(p => p !== player);
+      const otherBombs = other?.bombs;
+      const otherScore = other?.score;
+      for (let i = 0; i < 8; i++) {
+        const score = player.score;
+        nv.drop(game, player.x, player.y, 'B');
+        nv.updatePickups(game, 0);
+        assert.equal(player.bombs, Math.min(4 + i, 5));
+        assert.equal(player.score, score + (i >= 2 ? 500 : 0));
+        assert.equal(labels.at(-1), i >= 2 ? 'BOMB MAX +500' : 'BOMB +1');
+        if (other) {
+          assert.equal(other.bombs, otherBombs);
+          assert.equal(other.score, otherScore);
+        }
+      }
+    }
+    // Boss 奖励中的 B 也必须通过同一上限与满额奖励逻辑。
+    nv.spawnBoss(game);
+    game.boss.hp = 0;
+    nv.updateBoss(game, 0);
+    const bomb = game.pickups.find(p => p.type === 'B');
+    assert.ok(bomb);
+    const player = game.players[0];
+    bomb.x = player.x;
+    bomb.y = player.y;
+    const score = player.score;
+    nv.updatePickups(game, 0);
+    assert.equal(player.bombs, 5);
+    assert.equal(player.score, score + 500);
+    assert.equal(labels.at(-1), 'BOMB MAX +500');
+    const hud = [];
+    game.ctx.fillText = label => hud.push(label);
+    nv.render(game);
+    assert.equal(hud.filter(label => label === '♥×10   BOMB 5').length, mode);
+    nv.DIFFICULTY.player.bombs = 9;
+    game.start(mode);
+    assert.equal(game.players.length, mode);
+    for (const p of game.players) assert.equal(p.bombs, 5);
+  }
+});
+
 test('damage, shield, invincibility, bombs, co-op survival and game over', () => {
   const sim = load('?debug=1&mode=2');
   const { nv, game } = sim;

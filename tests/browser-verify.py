@@ -23,25 +23,29 @@ async def main():
         # 仅测试脚本注入状态，不添加游戏调试键；file:// 离线验证。
         pg=await newpage(b,BASE)
         await pg.keyboard.press('Digit2')
+        await pg.wait_for_function("NV.game.players.length===2 && NV.game.mode===2")
         assert all(p['lives']==10 for p in (await snap(pg))['players'])
         hud=await pg.evaluate("""(()=>{const c=NV.game.ctx;c.font='12px monospace';return [10,15].map(n=>c.measureText('♥×'+n+'   BOMB 3').width)})()""")
         assert max(hud)<211, hud
-        await pg.evaluate("""(()=>{const g=NV.game;g.god=true;g.state='playing';
+        injected=await pg.evaluate("""(()=>{const g=NV.game;g.god=true;g.state='playing';
           NV.beginStage(g,2);g.state='playing';NV.spawnBoss(g);
           Object.assign(g.boss,{y:170,hp:g.boss.maxHp*.5,cursor:2,fire:0});
-          NV.updateBoss(g,0);NV.render(g);})()""")
-        assert (await snap(pg))['bossSkill']=='laser'
-        assert await pg.evaluate('NV.game.boss.warning.left>=1 && NV.game.bullets.length===0')
+          NV.updateBoss(g,0);NV.render(g);
+          return {skill:window.__game.snapshot().bossSkill,left:g.boss.warning.left,bullets:g.bullets.length};})()""")
+        assert injected['skill']=='laser', injected
+        assert injected['left']>=1 and injected['bullets']==0, injected
         await pg.wait_for_timeout(150)
         assert (await snap(pg))['bossSkill']=='laser'
         assert await pg.evaluate("NV.game.state==='playing' && NV.game.boss.phase===2 && NV.game.boss.warning.left>0")
         await pg.screenshot(path=OUT+'boss_skills.png')
         results['boss_skills']=await snap(pg)
-        await pg.evaluate("""(()=>{const g=NV.game;g.god=true;
+        injected=await pg.evaluate("""(()=>{const g=NV.game;g.god=true;
           NV.beginStage(g,3);g.state='playing';NV.spawnBoss(g);
           Object.assign(g.boss,{y:170,hp:g.boss.maxHp*.2,cursor:4,fire:0});
-          NV.updateBoss(g,0);NV.render(g);})()""")
-        assert (await snap(pg))['bossSkill']=='wall'
+          NV.updateBoss(g,0);NV.render(g);
+          return {skill:window.__game.snapshot().bossSkill,left:g.boss.warning.left,bullets:g.bullets.length};})()""")
+        assert injected['skill']=='wall', injected
+        assert injected['left']>=1 and injected['bullets']==0, injected
         # 等待真实帧结束预警，再让弹幕墙下移约 0.6 秒。
         await pg.wait_for_function('NV.game.boss.warning===null')
         await pg.wait_for_timeout(600)
@@ -58,7 +62,9 @@ async def main():
         # 1 menu + single (normal URL, no debug)
         pg=await newpage(b,BASE)
         await pg.screenshot(path=OUT+"01_menu.png")
-        await pg.keyboard.press('Digit1'); await pg.wait_for_timeout(300)
+        await pg.keyboard.press('Digit1')
+        await pg.wait_for_function("NV.game.players.length===1 && NV.game.mode===1")
+        await pg.wait_for_timeout(300)
         await pg.keyboard.down('Space')
         s0=await snap(pg)
         assert s0["players"][0]["lives"]==10
@@ -74,20 +80,28 @@ async def main():
             if found and i>30: break
         results['single_start']=s0; results['single_end']=await snap(pg)
         await pg.keyboard.up('Space')
-        await pg.keyboard.press('KeyP'); await pg.wait_for_timeout(300)
+        await pg.keyboard.press('KeyP')
+        await pg.wait_for_function("NV.game.state==='paused'")
+        await pg.wait_for_timeout(300)
         results['paused']=await snap(pg); await pg.screenshot(path=OUT+"04_paused.png")
-        await pg.keyboard.press('KeyP'); await pg.wait_for_timeout(300)
+        await pg.keyboard.press('KeyP')
+        await pg.wait_for_function("NV.game.state!=='paused'")
+        await pg.wait_for_timeout(300)
         # idle until game over (natural)
         for i in range(240):
             await pg.wait_for_timeout(500)
             if (await snap(pg))['state']=='gameover': break
         results['gameover']=await snap(pg); await pg.screenshot(path=OUT+"05_gameover.png")
-        await pg.keyboard.press('KeyR'); await pg.wait_for_timeout(400)
+        await pg.keyboard.press('KeyR')
+        await pg.wait_for_function("NV.game.state==='menu' && NV.game.players.length===0")
+        await pg.wait_for_timeout(400)
         results['after_restart']=await snap(pg)
         await pg.close()
         # 2 co-op normal
         pg=await newpage(b,BASE)
-        await pg.keyboard.press('Digit2'); await pg.wait_for_timeout(300)
+        await pg.keyboard.press('Digit2')
+        await pg.wait_for_function("NV.game.players.length===2 && NV.game.mode===2")
+        await pg.wait_for_timeout(300)
         await pg.keyboard.down('Space'); await pg.keyboard.down('Enter')
         for i in range(20):
             await pg.keyboard.down('KeyA'); await pg.keyboard.down('ArrowRight'); await pg.wait_for_timeout(150)
