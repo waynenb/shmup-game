@@ -6,6 +6,7 @@ NV.pickupColors = {
   S: '#ffca64',
   L: '#82ffae',
   M: '#ef92ff',
+  P: '#ff784f',
   H: '#7af5ff',
   V: '#ff6f98',
   B: '#ffad58',
@@ -15,7 +16,7 @@ NV.pickupColors = {
 NV.drop = function (game, x, y, type) {
   const types = NV.DIFFICULTY.pickup.types;
   const first = game.stage === 1 && !game.firstDrop && !type;
-  if (first) { type = game.players.find(p => p.lives > 0)?.weapon || 'N'; game.firstDrop = true; }
+  if (first) { type = 'P'; game.firstDrop = true; }
   game.pickups.push({
     x,
     y,
@@ -48,18 +49,20 @@ NV.updatePickups = function (game, deltaTime) {
       let label;
       if ('NSLM'.includes(pickup.type)) {
         if (player.weapon === pickup.type) {
-          if (player.level === 3) {
-            game.award(player.id, c.maxBonus);
-            label = 'MAX +500';
-          } else {
-            player.level++;
-            player.levels[pickup.type] = player.level;
-          }
+          game.award(player.id, c.keepBonus);
+          label = pickup.type + ' KEEP +' + c.keepBonus;
         } else {
           player.weapon = pickup.type;
-          player.level = player.levels[pickup.type] || 1;
+          label = pickup.type + ' WEAPON';
         }
-        label = label || pickup.type + ' WEAPON LV.' + player.level;
+      } else if (pickup.type === 'P') {
+        if (player.level < 3) {
+          player.level++;
+          label = 'POWER LV.' + player.level;
+        } else {
+          game.award(player.id, c.maxBonus);
+          label = 'POWER MAX +' + c.maxBonus;
+        }
       } else if (pickup.type === 'H') {
         player.shield = c.shield;
         label = 'SHIELD 12s';

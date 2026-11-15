@@ -9,12 +9,6 @@ NV.makePlayer = (id, mode) => ({
   color: id ? '#ff65d8' : '#54eaff',
   weapon: 'N',
   level: 1,
-  levels: {
-    N: 1,
-    S: 1,
-    L: 1,
-    M: 1
-  },
   lives: NV.DIFFICULTY.player.lives,
   bombs: Math.min(NV.DIFFICULTY.player.bombs, NV.DIFFICULTY.player.maxBombs),
   score: 0,
@@ -35,7 +29,6 @@ NV.hitPlayer = function (game, player) {
   }
   player.lives--;
   player.level = Math.max(1, player.level - 1);
-  player.levels[player.weapon] = player.level;
   player.invincible = NV.DIFFICULTY.player.invincible;
   game.spark(player.x, player.y, player.color, 35);
   player.x = game.mode === 2 ? player.id ? 320 : 160 : 240;

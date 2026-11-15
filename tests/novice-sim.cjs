@@ -102,7 +102,7 @@ function noviceRun(seed, mode, dodge, seconds = 60) {
   let firstUpgrade = null;
   for (let i = 0; i < seconds * 60; i++) {
     game.update(1 / 60);
-    if (firstUpgrade === null && game.players.some(p => p.weapon !== 'N' || p.level > 1)) {
+    if (firstUpgrade === null && game.players.some(p => p.level > 1)) {
       firstUpgrade = (i + 1) / 60;
     }
     if (game.state === 'gameover') break;
@@ -135,7 +135,7 @@ function stageProfile(stage, mode, seconds = 90, seed = 3, upgrade = null) {
   const game = context.NV.game;
   game.start(mode);
   game.god = true;
-  if (upgrade) game.players.forEach(p => { p.weapon = upgrade[0]; p.level = upgrade[1]; p.levels[upgrade[0]] = upgrade[1]; });
+  if (upgrade) game.players.forEach(p => { p.weapon = upgrade[0]; p.level = upgrade[1]; });
   if (stage > 1) context.NV.beginStage(game, stage);
   const seen = new WeakSet();
   const buckets = [];
@@ -176,7 +176,7 @@ const out = {
     summarize('single, random+dodge', 1, true),
     summarize('single, random only', 1, false),
     summarize('co-op, random+dodge', 2, true),
-    Object.assign(summarize('single, random+dodge, 180s', 1, true, 180), { note: 'survival over 180s incl. later stage-1 / boss' })
+    Object.assign(summarize('single, random+dodge, 180s', 1, true, 180), { note: 'survival over 180s incl. later stages / bosses' })
   ],
   profile: {}
 };

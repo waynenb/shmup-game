@@ -50,7 +50,7 @@ NV.updateEnemies = function (game, deltaTime) {
       game.award(enemy.lastHit, 100 + enemy.type * 60);
       game.spark(enemy.x, enemy.y, game.theme.accent, 18);
       if (game.killsWithoutDrop >= c.pity || Math.random() < d.dropRate) {
-        NV.drop(game, enemy.x, enemy.y);
+        NV.drop(game, enemy.x, enemy.y, game.killsWithoutDrop >= c.pity && !(game.stage === 1 && !game.firstDrop) ? 'P' : undefined);
         game.killsWithoutDrop = 0;
       } else {
         game.killsWithoutDrop++;

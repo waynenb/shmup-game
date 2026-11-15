@@ -14,8 +14,10 @@ async def newpage(b,url):
     await pg.route('https://**', lambda route: route.abort())
     await pg.goto(url); await pg.wait_for_timeout(500); return pg
 async def give(pg, idx, t, n=1):
-    for _ in range(n):
-        await pg.evaluate(f"(()=>{{const p=NV.game.players[{idx}];NV.drop(NV.game,p.x,p.y-5,'{t}')}})()")
+    # 重置比较基线，再用类型胶囊切换、P 胶囊升级。
+    await pg.evaluate(f"NV.game.players[{idx}].level = 1")
+    for kind in [t] + ['P'] * (n - 1):
+        await pg.evaluate(f"(()=>{{const p=NV.game.players[{idx}];NV.drop(NV.game,p.x,p.y-5,'{kind}')}})()")
         await pg.wait_for_timeout(250)
 async def main():
     async with async_playwright() as p:

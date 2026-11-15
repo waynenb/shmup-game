@@ -49,7 +49,7 @@ NV.updateStage = function (game, deltaTime) {
   game.waveCharge += deltaTime / d.waveInterval;
   if (game.stage === 1 && !game.firstSupply && game.stageTime >= NV.DIFFICULTY.pickup.firstSupplyTime) {
     const player = game.players.find(p => p.lives > 0);
-    if (player) NV.drop(game, player.x, player.y - 80, player.weapon);
+    if (player) NV.drop(game, player.x, player.y - 80, 'P');
     game.firstSupply = true;
   }
   if (game.stageTime > 2 && game.waveCharge >= 1 && game.wave < c.waves) {

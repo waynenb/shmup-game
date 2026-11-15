@@ -28,7 +28,7 @@ NV.updateBoss = function (game, dt) {
   if (b.hp <= 0) {
     game.award(b.lastHit,motion.reward*game.stage);
     game.spark(b.x,b.y,game.theme.accent,90);
-    ['S','L','M','H','B','F'].forEach((type,i) => NV.drop(game,135+i*42,190+i%2*30,type));
+    ['P','L','P','H','B','F'].forEach((type,i) => NV.drop(game,135+i*42,190+i%2*30,type));
     b.warning = b.active = null;
     game.enemies = game.enemies.filter(e => !e.summoned);
     game.boss = null; game.bullets = []; game.state = 'clear'; game.stateTime = 0; game.flash = .5;

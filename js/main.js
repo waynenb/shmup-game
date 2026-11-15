@@ -156,7 +156,7 @@
         }
         if (input.tap('KeyU')) {
           for (let player of this.players.filter(player => player.lives > 0)) {
-            ['N', 'S', 'L', 'M', 'H', 'V', 'B', 'F'].forEach((type, i) => NV.drop(
+            ['N', 'S', 'L', 'M', 'P', 'H', 'V', 'B', 'F'].forEach((type, i) => NV.drop(
               this,
               NV.clamp(player.x + (i % 4 - 1.5) * 33, 18, 462),
               player.y - 90 - Math.floor(i / 4) * 40,

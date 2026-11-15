@@ -1,25 +1,30 @@
 // 难度唯一配置入口；派生函数保持纯读取，平滑状态只由 updateDifficulty 推进。
 'use strict';
 NV.DIFFICULTY = {
-  // 各关进度标尺：start/end 为无单位强度，duration 为秒，waves 为波数。
+  // 各关进度标尺：start/end、influence 为无单位强度，duration 为秒，waves 为波数，count 为每波数量倍率。
   stages: [
     {
       start: 0,
-      end: .22,
+      end: .28,
       duration: 65,
-      waves: 12
+      waves: 12,
+      count: 1,
+      influence: .1
     },
     {
       start: .3,
       end: .62,
       duration: 60,
-      waves: 14
+      waves: 14,
+      count: 1,
+      influence: .1
     },
     {
       start: .7,
       end: 1,
       duration: 55,
-      waves: 16
+      waves: 16,
+      count: 1.15
     }
   ],
   // 强度插值的低/高端点：count 为架/波，waveInterval、fireInterval 为秒；speed、bulletSpeed 为像素/秒；hp、heavyHp 为生命值，volley 为发数，armed、dropRate 为概率。
@@ -35,19 +40,13 @@ NV.DIFFICULTY = {
     armed: [.25, 1],
     dropRate: [.5, .3]
   },
-  // 火力评估：levelWeight、scoreWeight 为权重，scoreScale 为分数标尺；seconds 为平滑时间常数（秒），influence 和 weapon 为无单位强度加成。
+  // 火力评估：等级归一化后平方，减轻二级负担；levelWeight、scoreWeight 为权重，scoreScale 为分数标尺；seconds 为平滑时间常数（秒），influence 为无单位强度加成。
   power: {
-    levelWeight: .6,
-    scoreWeight: .4,
+    levelWeight: .65,
+    scoreWeight: .04,
     scoreScale: 18000,
-    seconds: 4,
-    influence: .2,
-    weapon: {
-      N: 0,
-      S: .12,
-      L: .1,
-      M: .15
-    }
+    seconds: 10,
+    influence: .2
   },
   // 双人模式：hp 为生命值倍率，count 为每波数量倍率。
   coop: {
@@ -74,7 +73,7 @@ NV.DIFFICULTY = {
     enemyRadius: 4,
     bombDamage: 95
   },
-  // 道具：speed、magnetSpeed 为像素/秒；magnetRadius、collectRadius、firstMagnetRadius 为像素；firstSupplyTime、shield 为秒，maxBonus、score 为分数，types 为道具类型。
+  // 道具：speed、magnetSpeed 为像素/秒；magnetRadius、collectRadius、firstMagnetRadius 为像素；firstSupplyTime、shield 为秒，keepBonus、maxBonus、score 为分数，types 为重复条目加权表。
   pickup: {
     speed: 55,
     magnetRadius: 180,
@@ -83,9 +82,12 @@ NV.DIFFICULTY = {
     firstMagnetRadius: 1000,
     firstSupplyTime: 6,
     shield: 12,
+    keepBonus: 200,
     maxBonus: 500,
     score: 1000,
-    types: ['N', 'S', 'L', 'M', 'H', 'V', 'B', 'F']
+    types: ['N', 'N', 'S', 'S', 'L', 'L', 'M', 'M',
+      'P', 'P', 'P', 'P', 'H', 'H', 'H', 'V',
+      'B', 'B', 'B', 'B', 'F', 'F', 'F', 'F']
   },
   // 各关 Boss：hp 为生命值，interval 为射击间隔（秒），speed 为弹速（像素/秒），count 为基础发数，phaseCount 为每阶段增加发数，aimed 表示是否追加瞄准弹。
   boss: [
@@ -165,7 +167,7 @@ NV.difficulty = function (game, progress, power) {
   const stage = c.stages[game.stage - 1];
   const p = NV.clamp(power === undefined ? game.difficultyPower || 0 : power, 0, 1);
   const t = NV.smoothstep(progress === undefined ? (game.stageTime || 0) / stage.duration : progress);
-  const intensity = stage.start + (stage.end - stage.start) * t + c.power.influence * p;
+  const intensity = stage.start + (stage.end - stage.start) * t + (stage.influence ?? c.power.influence) * p;
   const d = {
     intensity,
     power: p,
@@ -175,10 +177,10 @@ NV.difficulty = function (game, progress, power) {
     d[key] = ends[0] + (ends[1] - ends[0]) * intensity;
   }
   // 弹速只接收 70% 的火力强度加成，升级主要增加同屏密度。
-  d.bulletSpeed -= (c.curve.bulletSpeed[1] - c.curve.bulletSpeed[0]) * c.power.influence * .3 * p;
+  d.bulletSpeed -= (c.curve.bulletSpeed[1] - c.curve.bulletSpeed[0]) * (stage.influence ?? c.power.influence) * .3 * p;
   // 二次加成在低火力时温和，power=0 时保留原有开局。
-  d.fireInterval /= 1 + 2 * p * p;
-  d.count += 6 * p * p;
+  d.fireInterval /= 1 + 1.2 * p * p;
+  d.count = (d.count + 6 * p * p) * stage.count;
   d.hp += 5 * p * p;
   d.heavyHp += 5 * p * p;
   if (game.mode === 2) {
@@ -202,7 +204,7 @@ NV.updateDifficulty = function (game, dt) {
   const alive = game.players.filter(p => p.lives > 0);
   const target = alive.reduce((sum, p) => {
     return sum + NV.clamp(
-      c.levelWeight * NV.clamp((p.level - 1) / 2 + c.weapon[p.weapon], 0, 1) +
+      c.levelWeight * NV.clamp((p.level - 1) / 2, 0, 1) ** 2 +
       c.scoreWeight * NV.clamp(p.score / c.scoreScale, 0, 1),
       0,
       1

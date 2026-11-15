@@ -153,7 +153,7 @@ test('debug URL gating, stage limits and debug keys', () => {
   sim.tap('KeyI');
   assert.equal(sim.api.god, false);
   sim.tap('KeyU');
-  assert.equal(sim.api.pickups, 16);
+  assert.equal(sim.api.pickups, 18);
   sim.tap('KeyB');
   assert.equal(sim.api.boss, true);
   assert.equal(sim.api.snapshot().bossHp, sim.nv.DIFFICULTY.boss[1].hp * sim.nv.DIFFICULTY.coop.hp);
@@ -316,7 +316,7 @@ test('single-enemy waves spawn at center and nonpositive counts spawn nothing', 
   }
 });
 
-test('configured drops, pity guarantee, first weapon, reset and escaped enemies', () => {
+test('configured drops, pity guarantee, first power, reset and escaped enemies', () => {
   const { context, nv, game } = load('?debug=1&mode=1');
   function kill() {
     nv.spawnEnemy(game, 0, 240);
@@ -335,7 +335,8 @@ test('configured drops, pity guarantee, first weapon, reset and escaped enemies'
   assert.equal(game.killsWithoutDrop, 0);
   kill();
   assert.equal(game.pickups.length, 1);
-  assert.equal(game.pickups[0].type, 'N');
+  assert.equal(game.pickups[0].type, 'P');
+  assert.equal(game.pickups[0].first, true);
   context.nextRandom = () => nv.difficulty(game).dropRate - .01;
   kill();
   assert.equal(game.pickups.length, 2);
@@ -351,35 +352,87 @@ test('configured drops, pity guarantee, first weapon, reset and escaped enemies'
   assert.equal(game.killsWithoutDrop, 0);
 });
 
-test('all pickups, saved levels and maximum level bonus', () => {
-  const { nv, game } = load('?debug=1&mode=1');
-  const player = game.players[0];
+test('random pickup weights keep upgrades available without shield flooding', () => {
+  const { nv } = load();
+  const types = [...nv.DIFFICULTY.pickup.types];
+  const count = type => types.filter(t => t === type).length;
+  assert.equal(types.length, 24);
+  assert.ok(count('H') <= 3);
+  assert.ok(count('P') >= 3);
+  assert.ok(count('V') <= 2);
+  const weapons = types.filter(t => 'NSLM'.includes(t)).length;
+  assert.ok(weapons >= 8 && weapons <= 12);
+  assert.ok(count('B') > 0 && count('F') > 0);
+});
+
+test('shared power, type keeps, max bonus and independent co-op players', () => {
+  const { nv, game } = load('?debug=1&mode=2');
+  const labels = [];
+  game.toast = (x, y, label) => labels.push(label);
+  const [player, other] = game.players;
   function collect(type) {
     nv.drop(game, player.x, player.y, type);
     nv.updatePickups(game, 0);
     assert.equal(game.pickups.length, 0);
   }
+  assert.equal('levels' in player, false);
   collect('N');
-  collect('N');
-  assert.equal(player.level, 3);
-  collect('N');
-  assert.equal(player.score, 500);
-  for (const weapon of ['S', 'L', 'M']) {
+  assert.equal(player.level, 1);
+  assert.equal(player.score, 200);
+  assert.equal(labels.at(-1), 'N KEEP +200');
+  collect('P');
+  assert.equal(player.weapon, 'N');
+  assert.equal(player.level, 2);
+  for (const weapon of ['S', 'L', 'M', 'N']) {
+    const before = nv.difficulty(game).intensity;
+    const power = game.difficultyPower;
+    nv.updateDifficulty(game, 1 / 60);
+    const expectedPower = game.difficultyPower;
+    game.difficultyPower = power;
     collect(weapon);
     assert.equal(player.weapon, weapon);
-    collect(weapon);
     assert.equal(player.level, 2);
+    assert.equal(labels.at(-1), weapon + ' WEAPON');
+    assert.equal(nv.difficulty(game).intensity, before);
+    nv.updateDifficulty(game, 1 / 60);
+    assert.equal(game.difficultyPower, expectedPower, 'type switch preserves the power trajectory');
   }
-  collect('N');
+  collect('P');
   assert.equal(player.level, 3);
-  collect('H');
-  assert.equal(player.shield, 12);
-  collect('V');
-  assert.equal(player.lives, 11);
-  collect('B');
-  assert.equal(player.bombs, 4);
-  collect('F');
-  assert.equal(player.score, 1500);
+  assert.equal(player.weapon, 'N');
+  collect('P');
+  assert.equal(player.level, 3);
+  assert.equal(player.score, 700);
+  assert.equal(labels.at(-1), 'POWER MAX +500');
+  assert.equal(other.level, 1);
+  assert.equal(other.weapon, 'N');
+  assert.equal(other.score, 0);
+  player.invincible = 0;
+  nv.hitPlayer(game, player);
+  assert.equal(player.level, 2);
+  collect('S');
+  assert.equal(player.level, 2);
+  collect('H'); assert.equal(player.shield, 12);
+  collect('V'); assert.equal(player.lives, 10);
+  collect('B'); assert.equal(player.bombs, 4);
+  collect('F'); assert.equal(player.score, 1700);
+});
+
+test('opening supply, random first drop and later pity are power capsules', () => {
+  const { nv, game, context } = load('?debug=1&mode=1');
+  game.stageTime = nv.DIFFICULTY.pickup.firstSupplyTime - .01;
+  nv.updateStage(game, .01);
+  assert.equal(game.pickups.at(-1).type, 'P');
+  assert.equal(game.firstDrop, false);
+  nv.drop(game, 240, 200);
+  assert.equal(game.pickups.at(-1).type, 'P');
+  assert.equal(game.pickups.at(-1).first, true);
+  game.killsWithoutDrop = nv.DIFFICULTY.enemy.pity;
+  context.nextRandom = () => .99;
+  nv.spawnEnemy(game, 0, 240);
+  game.enemies.at(-1).hp = 0;
+  nv.updateEnemies(game, 0);
+  assert.equal(game.pickups.at(-1).type, 'P');
 });
 
 test('bomb caps, full bonus, independent co-op inventory and opening clamp', () => {
@@ -576,7 +629,7 @@ test('dense continuous monotone curves, stage tiers and eased power', () => {
   assert.equal(opening.armed, .25);
   game.difficultyPower = 0;
   const player = game.players[0];
-  nv.drop(game, player.x, player.y, 'N'); nv.updatePickups(game, 0);
+  nv.drop(game, player.x, player.y, 'P'); nv.updatePickups(game, 0);
   assert.equal(nv.difficulty(game).power, 0);
   nv.updateDifficulty(game, 1 / 60);
   const first = nv.difficulty(game).power;
@@ -587,7 +640,7 @@ test('dense continuous monotone curves, stage tiers and eased power', () => {
   assert.equal(snapshot.difficulty.power, first);
 });
 
-// 使用原样的新手模拟器做密度回归；统计验收仍另跑 200 种子。
+// 使用同一新手模拟器做密度回归；统计验收仍另跑 200 种子。
 test('upgraded stage-1 occupancy and stage-3 pressure profiles', () => {
   let result;
   const filename = path.join(__dirname, 'novice-sim.cjs');
