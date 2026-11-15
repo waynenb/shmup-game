@@ -4,7 +4,7 @@ NV.spawnBoss = function (game) {
   if (game.boss) return;
   game.enemies = [];
   const hp = NV.difficulty(game).bossHp;
-  game.boss = {x:240,y:-90,r:53,hp,maxHp:hp,t:0,fire:1,lastHit:0,phase:1,
+  game.boss = {name:game.theme.boss,x:240,y:-90,r:53,hp,maxHp:hp,t:0,fire:1,lastHit:0,phase:1,
     skill:null,skillsUsed:{},cursor:0,targetCursor:{},warning:null,active:null,targets:[]};
   game.toast(240,310,'WARNING / 旗舰接近','#ff647e');
 };
@@ -36,7 +36,7 @@ NV.updateBoss = function (game, dt) {
   }
   b.t += dt;
   b.phase = b.hp/b.maxHp < motion.thresholds[1] ? 3 : b.hp/b.maxHp < motion.thresholds[0] ? 2 : 1;
-  const homeX = 240+Math.sin(b.t*(motion.frequency+game.stage*motion.stageFrequency))*(motion.amplitude+game.stage*motion.stageAmplitude);
+  const homeX = 240+Math.sin(b.t*(motion.frequency+game.stage*motion.stageFrequency))*Math.min(155,motion.amplitude+game.stage*motion.stageAmplitude);
   if (!b.active || b.skill !== 'charge') {
     b.x = homeX; b.y = Math.min(170,b.y+motion.entry*dt);
   }
@@ -81,6 +81,16 @@ NV.updateBoss = function (game, dt) {
       for (let i=0;i<c.ring;i++) shot(b.x,b.y,Math.PI*2*i/c.ring+b.t*motion.rotation,c.speed,4,'#c18aff');
     } else if (b.skill === 'wall') {
       for (let x=12;x<480;x+=c.spacing) if (Math.abs(x-w.x)>=c.gap/2+4) shot(x,130,Math.PI/2);
+    } else if (b.skill === 'rain') {
+      // 三层错时抵达，同一条宽安全走廊贯穿整场弹雨。
+      for (let row=0;row<3;row++) for (let x=12;x<480;x+=c.spacing)
+        if (Math.abs(x-w.x)>=c.gap/2+4) {
+          shot(x,-20,Math.PI/2,c.speed,4,'#8feaff');
+          game.bullets[game.bullets.length-1].delay = row*.5;
+        }
+    } else if (b.skill === 'cross') {
+      for (let arm=0;arm<4;arm++) for (let i=0;i<7;i++)
+        shot(w.x,w.y,arm*Math.PI/2,65+i*12,5,'#ffc975');
     } else if (b.skill === 'homing') {
       for (let i=0;i<s.homingCount;i++) {
         shot(b.x+(i-.5)*30,b.y+30,Math.PI/2,s.homingSpeed,6,'#ffbb64');
@@ -106,7 +116,7 @@ NV.updateBoss = function (game, dt) {
   const target = aimed ? alive[(b.targetCursor[b.skill] || 0) % alive.length] : null;
   if (aimed) b.targetCursor[b.skill] = (b.targetCursor[b.skill] || 0)+1;
   const x = target ? target.x : 240+Math.sin(b.t)*100;
-  b.warning = {left:c.warning,x,y:130,target:target?target.id:null,gap:c.gap};
+  b.warning = {left:c.warning,x:b.skill==='cross'?b.x:x,y:b.skill==='cross'?b.y:130,target:target?target.id:null,gap:c.gap};
   if (target) b.targets.push({skill:b.skill,id:target.id});
   game.toast(240,260,'WARNING / '+b.skill.toUpperCase(),'#ffbb64');
 };

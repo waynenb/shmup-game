@@ -180,8 +180,8 @@ const out = {
   ],
   profile: {}
 };
-for (const stage of [1, 2, 3]) out.profile['stage' + stage + '_single_N1'] = stageProfile(stage, 1);
+for (const stage of [1, 2, 3, 4, 5, 6, 7, 8]) out.profile['stage' + stage + '_single_N1'] = stageProfile(stage, 1);
 out.profile['stage1_single_S3'] = stageProfile(1, 1, 90, 3, ['S', 3]);
 out.profile['stage1_coop_N1'] = stageProfile(1, 2);
-out.bosses = [1, 2, 3].map(bossInfo);
+out.bosses = [1, 2, 3, 4, 5, 6, 7, 8].map(bossInfo);
 console.log(JSON.stringify(out, null, 1));

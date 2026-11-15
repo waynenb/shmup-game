@@ -64,6 +64,11 @@ async def main():
         assert await pg.evaluate("NV.game.state==='playing' && NV.game.boss.phase===3 && NV.game.boss.warning===null && NV.game.bullets.length>0")
         await pg.screenshot(path=OUT+'boss_skills_wall.png')
         results['boss_skills_wall']=await snap(pg)
+        # 仅通过测试脚本注入关卡，四张图覆盖不同卷轴图层。
+        for stage in (2,4,6,8):
+            await pg.evaluate(f"(()=>{{const g=NV.game;NV.beginStage(g,{stage});g.state='playing';g.clock=12;NV.render(g)}})()")
+            await pg.screenshot(path=OUT+f'stage{stage:02d}_scene.png')
+            assert (await snap(pg))['stage']==stage
         results['hud_widths']=hud
         await pg.close()
         if '--skills-only' in sys.argv:
@@ -159,8 +164,8 @@ async def main():
         await pg.screenshot(path=OUT+"15_stage2_intro.png"); results['intro2']=await snap(pg)
         await pg.wait_for_timeout(3000)
         await pg.screenshot(path=OUT+"16_stage2_play.png"); results['play2']=await snap(pg)
-        # stage 2 boss -> stage 3 (via kill), then stage3 boss -> victory
-        for st in (2,3):
+        # Clear every remaining boss through stage eight.
+        for st in range(2,9):
             await pg.keyboard.press('KeyB'); await pg.wait_for_timeout(2500)
             await pg.screenshot(path=OUT+f"17_boss_stage{st}.png"); results[f'boss{st}']=await snap(pg)
             for _ in range(40):
@@ -173,6 +178,7 @@ async def main():
             await pg.wait_for_timeout(500)
             results[f'after_boss{st}']=await snap(pg)
             await pg.screenshot(path=OUT+f"18_after_boss{st}.png")
+        assert (await snap(pg))['state']=='victory'
         await pg.close()
         await b.close()
     print(json.dumps(results,ensure_ascii=False,indent=0))

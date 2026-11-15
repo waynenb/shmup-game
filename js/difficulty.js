@@ -3,29 +3,14 @@
 NV.DIFFICULTY = {
   // 各关进度标尺：start/end、influence 为无单位强度，duration 为秒，waves 为波数，count 为每波数量倍率。
   stages: [
-    {
-      start: 0,
-      end: .28,
-      duration: 65,
-      waves: 12,
-      count: 1,
-      influence: .1
-    },
-    {
-      start: .3,
-      end: .62,
-      duration: 60,
-      waves: 14,
-      count: 1,
-      influence: .1
-    },
-    {
-      start: .7,
-      end: 1,
-      duration: 55,
-      waves: 16,
-      count: 1.15
-    }
+    {start:0,end:.28,duration:65,waves:12,count:1,influence:.1},
+    {start:.30,end:.62,duration:60,waves:14,count:1,influence:.1},
+    {start:.70,end:1,duration:55,waves:16,count:1.15,influence:.2},
+    {start:1,end:1.12,duration:57,waves:17,count:1.15,influence:.2},
+    {start:1.12,end:1.24,duration:59,waves:18,count:1.15,influence:.2},
+    {start:1.24,end:1.36,duration:61,waves:19,count:1.15,influence:.2},
+    {start:1.36,end:1.48,duration:63,waves:20,count:1.15,influence:.2},
+    {start:1.48,end:1.60,duration:65,waves:21,count:1.15,influence:.2}
   ],
   // 强度插值的低/高端点：count 为架/波，waveInterval、fireInterval 为秒；speed、bulletSpeed 为像素/秒；hp、heavyHp 为生命值，volley 为发数，armed、dropRate 为概率。
   curve: {
@@ -91,42 +76,92 @@ NV.DIFFICULTY = {
   },
   // 各关 Boss：hp 为生命值，interval 为射击间隔（秒），speed 为弹速（像素/秒），count 为基础发数，phaseCount 为每阶段增加发数，aimed 表示是否追加瞄准弹。
   boss: [
-    {
-      hp: 260,
-      interval: 2,
-      speed: 75,
-      count: 3,
-      phaseCount: 1,
-      aimed: false
-    },
-    {
-      hp: 850,
-      interval: .95,
-      speed: 135,
-      count: 12,
-      phaseCount: 4,
-      aimed: true
-    },
-    {
-      hp: 1300,
-      interval: .7,
-      speed: 170,
-      count: 9,
-      phaseCount: 2,
-      aimed: true
-    }
-  ],
+  {
+    "hp": 260,
+    "interval": 2,
+    "speed": 75,
+    "count": 3,
+    "phaseCount": 1,
+    "aimed": false
+  },
+  {
+    "hp": 850,
+    "interval": 0.95,
+    "speed": 135,
+    "count": 12,
+    "phaseCount": 4,
+    "aimed": true
+  },
+  {
+    "hp": 1300,
+    "interval": 0.7,
+    "speed": 170,
+    "count": 9,
+    "phaseCount": 2,
+    "aimed": true
+  },
+  {
+    "hp": 1550,
+    "interval": 0.7,
+    "speed": 145,
+    "count": 9,
+    "phaseCount": 2,
+    "aimed": true
+  },
+  {
+    "hp": 1800,
+    "interval": 0.7,
+    "speed": 150,
+    "count": 10,
+    "phaseCount": 2,
+    "aimed": true
+  },
+  {
+    "hp": 2050,
+    "interval": 0.7,
+    "speed": 155,
+    "count": 10,
+    "phaseCount": 2,
+    "aimed": true
+  },
+  {
+    "hp": 2300,
+    "interval": 0.7,
+    "speed": 160,
+    "count": 11,
+    "phaseCount": 2,
+    "aimed": true
+  },
+  {
+    "hp": 2600,
+    "interval": 0.7,
+    "speed": 165,
+    "count": 12,
+    "phaseCount": 2,
+    "aimed": true
+  }
+],
   // 技能轮换：phase 为解锁阶段；所有时间单位秒、距离单位像素、速度像素/秒。
   bossSkills: [
     [{name:'fan', phase:1}, {name:'ring', phase:1}, {name:'wall', phase:2}, {name:'spiral', phase:3}],
     [{name:'ring', phase:1}, {name:'spiral', phase:1}, {name:'laser', phase:2}, {name:'summon', phase:2}, {name:'homing', phase:3}],
-    [{name:'sway', phase:1}, {name:'laser', phase:1}, {name:'charge', phase:2}, {name:'homing', phase:2}, {name:'wall', phase:3}, {name:'spiral', phase:3}]
+    [{name:'sway', phase:1}, {name:'laser', phase:1}, {name:'charge', phase:2}, {name:'homing', phase:2}, {name:'wall', phase:3}, {name:'spiral', phase:3}],
+    [{"name": "ring", "phase": 1}, {"name": "wall", "phase": 1}, {"name": "rain", "phase": 2}, {"name": "laser", "phase": 2}, {"name": "spiral", "phase": 3}],
+    [{"name": "fan", "phase": 1}, {"name": "sway", "phase": 1}, {"name": "cross", "phase": 2}, {"name": "summon", "phase": 2}, {"name": "rain", "phase": 3}],
+    [{"name": "sway", "phase": 1}, {"name": "laser", "phase": 1}, {"name": "homing", "phase": 2}, {"name": "rain", "phase": 2}, {"name": "charge", "phase": 3}],
+    [{"name": "spiral", "phase": 1}, {"name": "ring", "phase": 1}, {"name": "cross", "phase": 2}, {"name": "homing", "phase": 2}, {"name": "wall", "phase": 3}],
+    [{"name": "rain", "phase": 1}, {"name": "cross", "phase": 1}, {"name": "summon", "phase": 2}, {"name": "laser", "phase": 2}, {"name": "charge", "phase": 3}, {"name": "spiral", "phase": 3}]
   ],
   // 每关技能参数：预警、施放后休息、环弹数量、墙缺口宽度、墙间距、螺旋发数及间隔。
   skillTiers: [
     {warning:1.1, rest:2, ring:10, gap:156, spacing:28, spiral:10, pulse:.22, speed:70},
     {warning:1, rest:1.2, ring:16, gap:132, spacing:26, spiral:16, pulse:.14, speed:120},
-    {warning:1, rest:1, ring:20, gap:120, spacing:24, spiral:22, pulse:.11, speed:150}
+    {warning:1, rest:1, ring:20, gap:120, spacing:24, spiral:22, pulse:.11, speed:150},
+    {"warning": 1.15, "rest": 1.2, "ring": 18, "gap": 132, "spacing": 26, "spiral": 18, "pulse": 0.14, "speed": 130},
+    {"warning": 1.15, "rest": 1.16, "ring": 19, "gap": 129, "spacing": 26, "spiral": 19, "pulse": 0.14, "speed": 137},
+    {"warning": 1.15, "rest": 1.12, "ring": 20, "gap": 126, "spacing": 26, "spiral": 20, "pulse": 0.14, "speed": 144},
+    {"warning": 1.15, "rest": 1.08, "ring": 21, "gap": 123, "spacing": 26, "spiral": 21, "pulse": 0.14, "speed": 151},
+    {"warning": 1.15, "rest": 1.04, "ring": 22, "gap": 120, "spacing": 26, "spiral": 22, "pulse": 0.14, "speed": 158}
   ],
   // 激光为预警位置固定的直线弹串；追踪角速度有上限且到期消失；冲锋终点不超过 y=560。
   skill: {laserDuration:.7, laserPulse:.05, laserSpeed:650, laserRadius:6,
@@ -174,10 +209,16 @@ NV.difficulty = function (game, progress, power) {
     stageProgress: progress === undefined ? NV.clamp((game.stageTime || 0) / stage.duration, 0, 1) : progress
   };
   for (const [key, ends] of Object.entries(c.curve)) {
-    d[key] = ends[0] + (ends[1] - ends[0]) * intensity;
+    // 超过旧强度范围后平滑趋近 1.4，防止负间隔和无限弹速。
+    const bounded = intensity <= 1.2 ? intensity : 1.2 + .2 * (1-Math.exp(-(intensity-1.2)/.2));
+    d[key] = ends[0] + (ends[1] - ends[0]) * bounded;
   }
+  // 射击间隔在旧上界 1.2 后单独软着陆，始终为正。
+  if (intensity > 1.2) d.fireInterval = .22 + .14*Math.exp(-(intensity-1.2)*4.7/.14);
   // 弹速只接收 70% 的火力强度加成，升级主要增加同屏密度。
-  d.bulletSpeed -= (c.curve.bulletSpeed[1] - c.curve.bulletSpeed[0]) * (stage.influence ?? c.power.influence) * .3 * p;
+  const bulletIntensity = intensity - (stage.influence ?? c.power.influence) * .3 * p;
+  const bulletBound = bulletIntensity <= 1.2 ? bulletIntensity : 1.2+.2*(1-Math.exp(-(bulletIntensity-1.2)/.2));
+  d.bulletSpeed = c.curve.bulletSpeed[0]+(c.curve.bulletSpeed[1]-c.curve.bulletSpeed[0])*bulletBound;
   // 二次加成在低火力时温和，power=0 时保留原有开局。
   d.fireInterval /= 1 + 1.2 * p * p;
   d.count = (d.count + 6 * p * p) * stage.count;

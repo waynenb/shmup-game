@@ -30,8 +30,17 @@ NV.updateEnemies = function (game, deltaTime) {
     if (enemy.type === 1) {
       enemy.x = enemy.baseX + Math.sin(enemy.t * 2.5) * 45;
     }
+    if (enemy.formation) {
+      const f = enemy.formation;
+      const amp = f === 3 ? 85 : f === 6 ? 65 : f === 8 ? 35 : 20;
+      const drift = f===2 ? Math.sin(enemy.t)*20 : f===3 ? Math.sin(enemy.t*1.2)*85*(enemy.baseX<240?1:-1)
+        : f===4 ? Math.sin(enemy.t*.7)*20 : f===5 ? Math.sin(enemy.t*1.4+Math.abs(enemy.baseX-240)*.01)*35
+        : f===6 ? Math.sin(enemy.t*2+enemy.baseX*.012)*amp : f===7 ? Math.sin(enemy.t*1.8+enemy.baseX*.02)*45
+        : Math.sin(enemy.t+Math.floor(enemy.baseX/80))*35;
+      enemy.x = NV.clamp(enemy.baseX + drift,25,455);
+    }
     enemy.fire -= deltaTime;
-    if (enemy.armed && enemy.fire <= 0 && enemy.y > 10) {
+    if (enemy.armed && enemy.fire <= 0 && enemy.y > 10 && (game.stage <= 3 || game.bullets.length < 360)) {
       enemy.fire = d.fireInterval * (enemy.type === 2 ? c.heavyFire : 1);
       let player = game.players.reduce((nearest, candidate) => {
         if (candidate.lives <= 0) return nearest;

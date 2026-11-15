@@ -94,7 +94,7 @@
       this.particles = [];
       this.texts = [];
       this.flash = 0;
-      NV.beginStage(this, debug ? NV.clamp(parseInt(params.get('stage'), 10) || 1, 1, 3) : 1);
+      NV.beginStage(this, debug ? NV.clamp(parseInt(params.get('stage'), 10) || 1, 1, NV.themes.length) : 1);
     },
     /* 按固定时间步长处理输入、状态转换与战场更新。 */
     update(deltaTime) {
@@ -196,6 +196,7 @@
         NV.updateEnemies(this, deltaTime);
         NV.updateBoss(this, deltaTime);
         for (let bullet of this.bullets) {
+          if (bullet.delay > 0) { bullet.delay = Math.max(0,bullet.delay-deltaTime); continue; }
           NV.updateBossBullet(this, bullet, deltaTime);
           bullet.x += bullet.vx * deltaTime;
           bullet.y += bullet.vy * deltaTime;

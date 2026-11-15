@@ -7,10 +7,135 @@
   const shots = new Map();
   NV.AUDIO = {
     tracks: [
-      { name: 'harbor', root: 57, notes: [0, 7, 12, 10, 7, 3, 5, 7] },
-      { name: 'rift', root: 55, notes: [0, 3, 7, 10, 12, 7, 5, 3] },
-      { name: 'corona', root: 60, notes: [0, 5, 7, 12, 10, 7, 2, 5] }
-    ]
+  {
+    "name": "cloud",
+    "root": 57,
+    "notes": [
+      0,
+      7,
+      12,
+      10,
+      7,
+      3,
+      5,
+      7
+    ],
+    "beat": 0.38,
+    "voice": "triangle"
+  },
+  {
+    "name": "fleet",
+    "root": 50,
+    "notes": [
+      0,
+      2,
+      7,
+      9,
+      12,
+      7,
+      5,
+      2
+    ],
+    "beat": 0.362,
+    "voice": "sine"
+  },
+  {
+    "name": "dune",
+    "root": 55,
+    "notes": [
+      0,
+      1,
+      7,
+      8,
+      12,
+      7,
+      3,
+      1
+    ],
+    "beat": 0.34400000000000003,
+    "voice": "square"
+  },
+  {
+    "name": "frost",
+    "root": 62,
+    "notes": [
+      0,
+      4,
+      7,
+      11,
+      14,
+      11,
+      7,
+      4
+    ],
+    "beat": 0.326,
+    "voice": "sine"
+  },
+  {
+    "name": "ember",
+    "root": 48,
+    "notes": [
+      0,
+      1,
+      4,
+      7,
+      8,
+      7,
+      4,
+      1
+    ],
+    "beat": 0.308,
+    "voice": "sawtooth"
+  },
+  {
+    "name": "midnight",
+    "root": 59,
+    "notes": [
+      0,
+      3,
+      7,
+      10,
+      14,
+      10,
+      7,
+      3
+    ],
+    "beat": 0.29000000000000004,
+    "voice": "triangle"
+  },
+  {
+    "name": "orbit",
+    "root": 53,
+    "notes": [
+      0,
+      2,
+      6,
+      9,
+      12,
+      9,
+      6,
+      2
+    ],
+    "beat": 0.272,
+    "voice": "square"
+  },
+  {
+    "name": "hive",
+    "root": 46,
+    "notes": [
+      0,
+      1,
+      5,
+      6,
+      11,
+      6,
+      5,
+      1
+    ],
+    "beat": 0.254,
+    "voice": "sawtooth"
+  }
+]
   };
   function tone(bus, time, frequency, duration, volume, type = 'sine', end = frequency, cutoff = 1400) {
     const oscillator = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
@@ -30,7 +155,7 @@
     const menu = !game || ['menu', 'gameover', 'victory'].includes(game.state);
     const boss = !menu && !!game.boss;
     return { data, name: menu ? 'menu' : (boss ? 'boss-' : 'stage-') + data.name,
-      beat: menu ? .48 : boss ? .21 : .34, root: menu ? 57 : data.root,
+      beat: menu ? .48 : boss ? data.beat*.65 : data.beat, root: menu ? 57 : data.root,
       notes: menu ? [0, 4, 7, 11, 7, 4, 2, 7] : boss ? [0, 12, 7, 3, 0, 10, 7, 5] : data.notes };
   }
   function update(game) {
@@ -55,7 +180,7 @@
       while (next < now + .15) {
         const note = track.notes[step % track.notes.length];
         const hz = 440 * 2 ** ((track.root + note - 69) / 12);
-        tone(layer, next, hz, .65, .045, 'triangle');
+        tone(layer, next, hz, .65, .035, track.data.voice);
         if (step % 4 === 0) tone(layer, next, hz / 4, .7, .035);
         next += track.beat; step++;
       }

@@ -15,35 +15,7 @@ NV.render = function (game) {
     context.fillRect(star.x, y, star.size, star.size * 2);
   }
   context.globalAlpha = 1;
-  // Scrolling skyline and a perspective grid occupy separate parallax layers.
-  context.fillStyle = '#080b1b';
-  for (let i = 0; i < 16; i++) {
-    let height = 45 + (Math.sin(i * 73) * .5 + .5) * 150;
-    let x = i * 34 - 25;
-    let y = 590 + Math.sin(time * .1) * 10;
-    context.fillRect(x, y - height, 28, height);
-    context.fillStyle = theme.accent + '22';
-    for (let j = 0; j < 5; j++) {
-      context.fillRect(x + 5, y - height + 12 + j * 24, 3, 7);
-    }
-    context.fillStyle = '#080b1b';
-  }
-  context.strokeStyle = theme.accent + '26';
-  context.lineWidth = 1;
-  for (let i = -6; i <= 6; i++) {
-    context.beginPath();
-    context.moveTo(240 + i * 12, 480);
-    context.lineTo(240 + i * 100, 800);
-    context.stroke();
-  }
-  for (let i = 0; i < 12; i++) {
-    let depth = (i + time * .65) % 12 / 12;
-    let y = 480 + depth * depth * 320;
-    context.beginPath();
-    context.moveTo(0, y);
-    context.lineTo(480, y);
-    context.stroke();
-  }
+  NV.renderScene(game, context, time, theme);
   const text = (label, x, y, size = 16, color = '#eaf6ff', align = 'center', maxWidth) => {
     context.font = `${size >= 24 ? 'bold ' : ''}${size}px monospace`;
     context.textAlign = align;
@@ -128,7 +100,7 @@ NV.render = function (game) {
         let angle = i * Math.PI / 4 + boss.t * .2;
         context.lineTo(Math.cos(angle) * 62, Math.sin(angle) * 50);
       }
-    } else {
+    } else if (game.stage === 3) {
       context.moveTo(-78, -30);
       context.lineTo(-78, 23);
       context.lineTo(-26, 15);
@@ -137,6 +109,15 @@ NV.render = function (game) {
       context.lineTo(78, 23);
       context.lineTo(78, -30);
       context.lineTo(0, -52);
+    }
+    else {
+      // 冰晶六角、熔炉齿轮、都市双翼、轨道星环、母舰八瓣核心。
+      const points = [0,0,0,0,6,12,10,16,8][game.stage];
+      for (let i=0;i<points*2;i++) {
+        const angle = i*Math.PI/points-Math.PI/2;
+        const radius = i%2 ? 42 : 76;
+        context.lineTo(Math.cos(angle)*radius,Math.sin(angle)*radius*(game.stage===6?.6:1));
+      }
     }
     context.closePath();
     context.fill();
@@ -150,7 +131,7 @@ NV.render = function (game) {
     context.fillRect(35, 102, 410, 8);
     context.fillStyle = theme.secondary;
     context.fillRect(35, 102, 410 * Math.max(0, boss.hp / boss.maxHp), 8);
-    text('BOSS 0' + game.stage + ' / PHASE ' + boss.phase, 240, 96, 11, theme.secondary);
+    text(boss.name + ' / P' + boss.phase, 240, 96, 10, theme.secondary, 'center', 440);
   }
   if (game.boss && game.boss.warning) {
     const b = game.boss, w = b.warning;
@@ -160,11 +141,14 @@ NV.render = function (game) {
     context.lineWidth = 2;
     context.setLineDash([10, 8]);
     context.beginPath();
-    if (b.skill === 'wall') {
+    if ((b.skill === 'wall' || b.skill === 'rain')) {
       context.moveTo(w.x-w.gap/2, 130); context.lineTo(w.x-w.gap/2, 800);
       context.moveTo(w.x+w.gap/2, 130); context.lineTo(w.x+w.gap/2, 800);
     } else if (b.skill === 'laser' || b.skill === 'homing') {
       context.moveTo(w.x, w.y); context.lineTo(w.x, 800);
+    } else if (b.skill === 'cross') {
+      context.moveTo(0,w.y); context.lineTo(480,w.y);
+      context.moveTo(w.x,80); context.lineTo(w.x,800);
     } else if (b.skill === 'charge') {
       context.moveTo(b.x,b.y); context.lineTo(w.x,NV.DIFFICULTY.skill.chargeY);
     } else {
@@ -286,15 +270,15 @@ NV.render = function (game) {
       clear: 'STAGE CLEAR',
       paused: 'PAUSED',
       gameover: 'SIGNAL LOST',
-      victory: 'MISSION COMPLETE'
+      victory: 'ALL 8 STAGES CLEAR'
     }[game.state];
-    text(title, 240, 349, game.state === 'victory' ? 31 : 38, theme.accent);
+    text(title, 240, 349, game.state === 'victory' ? 29 : 38, theme.accent);
     text({
       intro: theme.name,
       clear: '航线净空 · 下一关准备',
       paused: 'P / ESC / START 继续',
       gameover: '游戏结束',
-      victory: '全关卡通关 · 航线已解放'
+      victory: '核心沉寂，黎明重返地球。'
     }[game.state], 240, 392, 15);
     if (game.state === 'gameover' || game.state === 'victory') {
       text('TOTAL SCORE  ' + game.players.reduce((totalScore, player) => totalScore + player.score, 0), 240, 437, 20);
@@ -308,4 +292,41 @@ NV.render = function (game) {
   if (game.debug) {
     text('DEBUG' + (game.god ? ' · GOD' : ''), 470, 766, 11, '#ffe27a', 'right');
   }
+};
+
+// 固定数量的几何图元，无纹理分配；近景/远景使用不同滚动速度。
+NV.renderScene = function (game, c, t, theme) {
+  c.save(); c.lineWidth=1;
+  const stage=game.stage;
+  for (let i=0;i<24;i++) {
+    const x=(i*137+31)%480, y=(i*97+t*(18+i%3*12))%920-60;
+    c.fillStyle=theme.primary+'18'; c.strokeStyle=theme.accent+'38';
+    if (stage===1) {
+      c.beginPath(); c.ellipse(x,y,75+i%4*16,18+i%3*8,0,0,Math.PI*2); c.fill();
+      c.fillStyle=theme.highlight+'0c'; c.fillRect(x-90,y+10,180,3);
+    } else if (stage===2) {
+      c.beginPath(); c.moveTo(x-50,y); c.quadraticCurveTo(x,y-12,x+65,y); c.stroke();
+      if(i%4===0) {c.fillStyle=theme.secondary+'30';c.beginPath();c.moveTo(x,y-35);c.lineTo(x-14,y+35);c.lineTo(x+14,y+35);c.closePath();c.fill();c.fillRect(x-4,y-6,8,25);}
+    } else if (stage===3 || stage===4 || stage===5) {
+      const side=i%2 ? 480 : 0, width=40+(i*37)%85;
+      c.fillStyle=(stage===3 ? theme.secondary : theme.primary)+'28';
+      c.beginPath();c.moveTo(side,y-65);c.lineTo(side+(side?-1:1)*width,y-20);c.lineTo(side+(side?-1:1)*width*.7,y+65);c.lineTo(side,y+100);c.closePath();c.fill();c.stroke();
+      if(stage===4) {c.fillStyle=theme.highlight+'65';c.fillRect(x,y,2,3);}
+      if(stage===5) {c.strokeStyle=theme.highlight+'45';c.beginPath();c.moveTo(x,y);c.lineTo(x+20,y+35);c.lineTo(x-5,y+70);c.stroke();c.fillRect(x,y-15,2,4);}
+    } else if(stage===6) {
+      const bx=i%2 ? 365 : 8, h=60+i%4*23;
+      c.fillStyle=theme.primary+'17';c.fillRect(bx,y,100,h);c.strokeRect(bx,y,100,h);
+      c.fillStyle=theme.secondary+'50';for(let j=0;j<4;j++) c.fillRect(bx+12+j*21,y+15,7,3);
+    } else if(stage===7) {
+      c.beginPath();for(let j=0;j<7;j++) {const a=j*Math.PI*2/7,r=12+i%4*5;c.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r*.7);}c.closePath();c.fill();c.stroke();
+      c.strokeStyle=theme.secondary+'18';c.beginPath();c.moveTo(x+40,y-90);c.lineTo(x+55,y-140);c.stroke();
+    } else {
+      const bx=i%2?410:15;
+      c.fillStyle=theme.primary+'13';c.fillRect(bx,y,55,85);c.strokeRect(bx,y,55,85);
+      c.fillStyle=theme.secondary+'50';c.fillRect(bx+22,y,6,60);
+      for(let j=0;j<5;j++) {c.fillStyle=theme.accent+'25';c.fillRect(bx+5,y+j*14,44,3);}
+    }
+  }
+  if(stage===8) {c.strokeStyle=theme.accent+'20';for(let i=0;i<9;i++) {const y=(i*110+t*40)%900;c.strokeRect(80,y,320,90);}}
+  c.restore();
 };

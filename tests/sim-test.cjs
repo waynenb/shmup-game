@@ -144,7 +144,7 @@ test('debug URL gating, stage limits and debug keys', () => {
   assert.equal(normal.api.god, false);
   normal.tap('KeyB');
   assert.equal(normal.api.boss, false);
-  for (const [requested, expected] of [['-2', 1], ['99', 3], ['bad', 1], ['2', 2]]) {
+  for (const [requested, expected] of [['-2', 1], ['99', 8], ['bad', 1], ['2', 2], ['8', 8]]) {
     assert.equal(load('?debug=1&stage=' + requested).api.stage, expected);
   }
   const sim = load('?debug=1&stage=2&mode=2&god=1');
@@ -161,7 +161,7 @@ test('debug URL gating, stage limits and debug keys', () => {
   assert.equal(sim.api.state, 'clear');
   sim.tap('KeyN');
   assert.equal(sim.api.stage, 3);
-  sim.tap('KeyN');
+  for (let i=0;i<6;i++) sim.tap('KeyN');
   assert.equal(sim.api.state, 'victory');
   sim.tap('KeyR');
   assert.equal(sim.api.state, 'menu');
@@ -247,7 +247,7 @@ test('enemies aim at nearest living player and bosses target both survivors', ()
   nv.updateEnemies(game, 0);
   assert.equal(game.bullets.length, 0);
   first.lives = second.lives = 10;
-  for (const stage of [2,3]) {
+  for (const stage of [2,3,4,5,6,7,8]) {
     nv.beginStage(game,stage); nv.spawnBoss(game);
     Object.assign(game.boss,{y:170,hp:game.boss.maxHp*.2});
     for (let i=0;i<18000;i++) nv.updateBoss(game,1/60);
@@ -260,6 +260,12 @@ test('enemies aim at nearest living player and bosses target both survivors', ()
 test('opening balance, normal cadence and increasing stage difficulty', () => {
   const { nv, game } = load('?debug=1&mode=1');
   const stats = [];
+  assert.equal(nv.themes.length,8);
+  for(let i=1;i<8;i++) {
+    assert.ok(nv.DIFFICULTY.boss[i].hp >= nv.DIFFICULTY.boss[i-1].hp);
+    assert.ok(nv.DIFFICULTY.stages[i].start >= nv.DIFFICULTY.stages[i-1].start);
+    assert.ok(nv.DIFFICULTY.stages[i].end > nv.DIFFICULTY.stages[i-1].end);
+  }
   for (const stage of [1, 2, 3]) {
     nv.beginStage(game, stage);
     nv.updateStage(game, 2.01);
@@ -548,9 +554,9 @@ test('gamepads: movement, fire, bomb edge and Start pause', () => {
   assert.equal(sim.api.state, 'playing');
 });
 
-test('three stages: timed waves, all boss phases, clear and victory', () => {
+test('eight stages: timed waves, all boss phases, clear and victory', () => {
   const sim = load('?debug=1&mode=2&god=1');
-  for (let stage = 1; stage <= 3; stage++) {
+  for (let stage = 1; stage <= 8; stage++) {
     assert.equal(sim.api.stage, stage);
     sim.tick(134);
     assert.equal(sim.api.state, 'playing');
@@ -588,7 +594,7 @@ test('dense continuous monotone curves, stage tiers and eased power', () => {
     for (const key of increasing) { assert.ok(b[key] >= a[key] - 1e-10, key); assert.ok(b[key] - a[key] < limit, key); }
     for (const key of decreasing) { assert.ok(b[key] <= a[key] + 1e-10, key); assert.ok(a[key] - b[key] < limit, key); }
   }
-  for (const stage of [1, 2, 3]) {
+  for (const stage of [1, 2, 3, 4, 5, 6, 7, 8]) {
     game.stage = stage;
     for (let power = 0; power <= 1.001; power += .1) {
       let previous = nv.difficulty(game, 0, power);
@@ -603,14 +609,14 @@ test('dense continuous monotone curves, stage tiers and eased power', () => {
       for (let j = 1; j <= 1000; j++) compare(nv.difficulty(game, progress, (j - 1) / 1000), nv.difficulty(game, progress, j / 1000), .02);
     }
   }
-  for (const stage of [1, 2]) {
+  for (const stage of [1,2,3,4,5,6,7]) {
     game.stage = stage; const end = nv.difficulty(game, 1, 0);
     game.stage++; assert.ok(nv.difficulty(game, 0, 0).intensity >= end.intensity - 1e-10);
   }
   // 同进度、同火力下，关卡档位严格递增。
   for (let i = 0; i <= 100; i++) {
     for (let j = 0; j <= 100; j++) {
-      const tiers = [1, 2, 3].map(stage => {
+      const tiers = [1, 2, 3, 4, 5, 6, 7, 8].map(stage => {
         game.stage = stage;
         return nv.difficulty(game, i / 100, j / 100);
       });
@@ -661,7 +667,7 @@ test('upgraded stage-1 occupancy and stage-3 pressure profiles', () => {
 });
 
 test('boss skills unlock, warn, rotate, respect caps and clean up', () => {
-  for (const stage of [1,2,3]) {
+  for (const stage of [1,2,3,4,5,6,7,8]) {
     const {nv,game} = load('?debug=1&mode=2&god=1');
     nv.beginStage(game,stage); nv.spawnBoss(game);
     const b=game.boss; b.y=170;
@@ -732,7 +738,7 @@ test('render every state and fixed-step animation without storage', () => {
     sim.game.state = state;
     sim.nv.render(sim.game);
   }
-  for (let stage = 1; stage <= 3; stage++) {
+  for (let stage = 1; stage <= 8; stage++) {
     sim.nv.beginStage(sim.game, stage);
     sim.nv.spawnBoss(sim.game);
     sim.nv.render(sim.game);
@@ -747,6 +753,49 @@ test('render every state and fixed-step animation without storage', () => {
   assert.ok(sim.game.clock - clock <= .101);
 });
 
+
+test('rain corridor, cross telegraph, scene variety and late-stage safety bounds', () => {
+  const {nv,game}=load('?debug=1&mode=1&god=1');
+  assert.equal(new Set(nv.themes.map(t=>t.bg)).size,8);
+  assert.equal(new Set(nv.themes.map(t=>t.boss)).size,8);
+  assert.equal(nv.AUDIO.tracks.length,8);
+  assert.equal(new Set(nv.AUDIO.tracks.map(t=>t.root)).size,8);
+  for(let stage=1;stage<=8;stage++) {
+    nv.beginStage(game,stage);
+    for(const power of [0,.5,1]) {
+      const d=nv.difficulty(game,1,power);
+      assert.ok(d.fireInterval>0 && d.waveInterval>0);
+      assert.ok(d.bulletSpeed<226 && d.count<25);
+    }
+  }
+  for(const [stage,skill] of [[4,'rain'],[5,'cross']]) {
+    nv.beginStage(game,stage);nv.spawnBoss(game);
+    const b=game.boss;
+    Object.assign(b,{y:170,hp:b.maxHp*.2,fire:0,cursor:nv.DIFFICULTY.bossSkills[stage-1].findIndex(k=>k.name===skill)});
+    nv.updateBoss(game,0);
+    const w={...b.warning};
+    assert.equal(b.skill,skill);
+    assert.ok(w.left>=1);
+    assert.equal(game.bullets.length,0);
+    nv.render(game);
+    nv.updateBoss(game,w.left);
+    assert.ok(game.bullets.length>0);
+    nv.render(game);
+    if(skill==='rain') {
+      for(const bullet of game.bullets) assert.ok(Math.abs(bullet.x-w.x)>=w.gap/2+4);
+      assert.deepEqual([...new Set(game.bullets.map(b=>b.delay))],[0,.5,1]);
+      const delayed=game.bullets.find(b=>b.delay===1), first=game.bullets[0];
+      game.state='playing';game.update(.25);
+      assert.ok(game.bullets.includes(delayed),'Later rain rows survive offscreen cleanup');
+      assert.equal(delayed.y,-20);assert.equal(delayed.delay,.75);
+      assert.ok(first.y>-20);
+    }
+    else for(const bullet of game.bullets) {
+      assert.equal(bullet.x,w.x);assert.equal(bullet.y,w.y);
+      assert.ok(Math.abs(bullet.vx)<1e-8 || Math.abs(bullet.vy)<1e-8);
+    }
+  }
+});
 
 test('audio silently degrades and mute storage is optional', () => {
   for (const blocked of [false, true]) {
@@ -798,9 +847,9 @@ test('audio unlock, independent shot throttles, bomb and tracks', () => {
   sim.nv.sound.shoot(player);
   assert.equal(oscillators - before, 3);
   sim.nv.sound.update({state: 'playing', stage: 2});
-  assert.equal(sim.nv.audio.track, 'stage-rift');
+  assert.equal(sim.nv.audio.track, 'stage-fleet');
   sim.nv.sound.update({state: 'playing', stage: 2, boss: {}});
-  assert.equal(sim.nv.audio.track, 'boss-rift');
+  assert.equal(sim.nv.audio.track, 'boss-fleet');
   sim.nv.sound.update({state: 'menu', stage: 2});
   assert.equal(sim.nv.audio.track, 'menu');
   sim.game.start(1); sim.game.state = 'playing';
