@@ -59,6 +59,7 @@ NV.updatePlayers = function (game, deltaTime) {
     }
     if (controls.bomb && player.bombs > 0) {
       player.bombs--;
+      NV.sound?.bomb();
       game.bullets = [];
       game.flash = .65;
       for (let enemy of game.enemies.concat(game.boss ? [game.boss] : [])) {

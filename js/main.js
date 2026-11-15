@@ -100,6 +100,7 @@
     update(deltaTime) {
       this.clock += deltaTime;
       NV.input.poll();
+      NV.sound?.update(this);
       const input = NV.input;
       if (this.state === 'menu') {
         if (input.tap('ArrowUp') || input.tap('KeyW') || input.tap('ArrowDown') || input.tap('KeyS')) {

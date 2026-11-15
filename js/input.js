@@ -13,7 +13,10 @@ NV.input = {
   padPrevious: [],
   /* 注册键盘事件，并在窗口失焦时暂停。 */
   init() {
+    window.addEventListener('pointerdown', () => NV.sound?.unlock());
     window.addEventListener('keydown', event => {
+      NV.sound?.unlock();
+      if (event.code === 'KeyM' && !event.repeat && !this.held.has('KeyM')) NV.sound?.toggle();
       if (['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape', 'Slash'].includes(event.code)) {
         event.preventDefault();
       }
@@ -40,6 +43,7 @@ NV.input = {
       gamepads = Array.from(navigator.getGamepads?.() || []).filter(Boolean);
     } catch (event) {}
     this.pads = gamepads;
+    if (gamepads.some(pad => pad.buttons.some(button => button.pressed) || pad.axes.some(axis => Math.abs(axis) > .18))) NV.sound?.unlock();
     for (let playerIndex = 0; playerIndex < gamepads.length; playerIndex++) {
       let gamepad = gamepads[playerIndex];
       let previousButtons = this.padPrevious[playerIndex] || [];

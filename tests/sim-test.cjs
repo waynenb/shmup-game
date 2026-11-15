@@ -13,7 +13,7 @@ const modules = Array.from(
 let checks = 0;
 
 // 每个用例使用独立全局环境和确定性随机数，且不访问网络或启动服务。
-function load(search = '', storageBlocked = false) {
+function load(search = '', storageBlocked = false, AudioContext) {
   const listeners = {};
   const frames = [];
   const storage = new Map();
@@ -26,6 +26,7 @@ function load(search = '', storageBlocked = false) {
   });
   const context = vm.createContext({
     URLSearchParams,
+    AudioContext,
     location: { search },
     navigator: { getGamepads: () => gamepads },
     document: { getElementById: () => ({ getContext: () => context2d }) },
@@ -64,7 +65,7 @@ function load(search = '', storageBlocked = false) {
     key(code, false);
   }
   return {
-    context, game, api: context.__game, nv: context.NV, tick, key, tap,
+    pointer: () => listeners.pointerdown(), context, storage, game, api: context.__game, nv: context.NV, tick, key, tap,
     blur: () => listeners.blur(),
     pads: value => { gamepads = value; },
     frame: now => frames.shift()(now)
@@ -691,6 +692,80 @@ test('render every state and fixed-step animation without storage', () => {
   sim.frame(1000);
   assert.ok(sim.game.clock > clock);
   assert.ok(sim.game.clock - clock <= .101);
+});
+
+
+test('audio silently degrades and mute storage is optional', () => {
+  for (const blocked of [false, true]) {
+    const sim = load('', blocked);
+    assert.equal(sim.nv.audio.loaded, true);
+    assert.equal(sim.nv.audio.ready, false);
+    for (const weapon of ['N', 'S', 'L', 'M']) sim.nv.sound.shoot({id: 0, weapon});
+    sim.nv.sound.bomb();
+    sim.nv.sound.unlock();
+    sim.tap('KeyM');
+    assert.equal(sim.nv.audio.muted, true);
+    if (!blocked) assert.equal(sim.storage.get('neon-vector-muted'), 'true');
+    sim.tap('KeyM');
+    assert.equal(sim.nv.audio.muted, false);
+    assert.equal(sim.nv.audio.ready, false);
+    assert.ok(Object.isFrozen(sim.nv.audio));
+  }
+});
+
+test('audio unlock, independent shot throttles, bomb and tracks', () => {
+  let created = 0, oscillators = 0, explosions = 0;
+  const param = () => ({setValueAtTime() {}, linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {}, setTargetAtTime() {}, cancelScheduledValues() {}});
+  const node = () => ({connect() {}, disconnect() {}, start() {}, stop() {},
+    gain: param(), frequency: param(), threshold: param(), ratio: param()});
+  class Audio {
+    constructor() { Audio.last = this; created++; this.currentTime = 0; this.state = 'running'; this.sampleRate = 100; }
+    createGain() { return node(); }
+    createDynamicsCompressor() { return node(); }
+    createBiquadFilter() { return node(); }
+    createOscillator() { oscillators++; return node(); }
+    createBuffer(channels, length) { return {getChannelData: () => new Float32Array(length)}; }
+    createBufferSource() { explosions++; return node(); }
+    resume() {}
+  }
+  const sim = load('', false, Audio);
+  sim.tick();
+  assert.equal(created, 0);
+  sim.key('KeyX');
+  assert.equal(created, 1);
+  assert.equal(sim.nv.audio.ready, true);
+  const player = {id: 0, weapon: 'N'};
+  let before = oscillators;
+  sim.nv.sound.shoot(player); sim.nv.sound.shoot(player);
+  assert.equal(oscillators - before, 1);
+  sim.nv.sound.shoot({id: 1, weapon: 'L'});
+  assert.equal(oscillators - before, 2);
+  Audio.last.currentTime = .081;
+  sim.nv.sound.shoot(player);
+  assert.equal(oscillators - before, 3);
+  sim.nv.sound.update({state: 'playing', stage: 2});
+  assert.equal(sim.nv.audio.track, 'stage-rift');
+  sim.nv.sound.update({state: 'playing', stage: 2, boss: {}});
+  assert.equal(sim.nv.audio.track, 'boss-rift');
+  sim.nv.sound.update({state: 'menu', stage: 2});
+  assert.equal(sim.nv.audio.track, 'menu');
+  sim.game.start(1); sim.game.state = 'playing';
+  sim.tap('KeyQ');
+  assert.equal(explosions, 1);
+  assert.equal(sim.game.players[0].bombs, 2);
+  const pad = load('', false, Audio);
+  const countBeforePad = created;
+  pad.pads([{buttons: [{pressed: true}], axes: [0, 0]}]);
+  pad.tick();
+  assert.equal(created, countBeforePad + 1);
+  assert.equal(pad.nv.audio.ready, true);
+  const broken = load('', false, class { constructor() { throw new Error('unavailable'); } });
+  assert.doesNotThrow(() => broken.tap('KeyX'));
+  assert.equal(broken.nv.audio.ready, false);
+  const pointer = load('', false, Audio);
+  pointer.pointer();
+  assert.equal(pointer.nv.audio.ready, true);
 });
 
 console.log(`\n${checks} offline simulation groups passed.`);

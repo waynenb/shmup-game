@@ -251,6 +251,7 @@ NV.render = function (game) {
       text(player.weapon + ' / LV.' + player.level + (player.lives <= 0 ? '  OFFLINE' : ''), x, 62, 12, player.color, 'left');
     }
     text('STAGE 0' + game.stage, 16, 787, 11, theme.accent, 'left');
+    text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 787, 10, '#8c9eb9');
     text('HI ' + game.highScore, 464, 787, 11, '#8c9eb9', 'right');
   }
   if (game.state === 'menu') {
@@ -272,6 +273,7 @@ NV.render = function (game) {
     }
     text('↑ ↓ / W S 选择 · ENTER / SPACE 确认', 240, 584, 12);
     text('也可按 1 或 2 直接开始', 240, 610, 12, '#8c9eb9');
+    text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 638, 12, '#8c9eb9');
     text('P1  WASD · SPACE · Q', 240, 672, 12, '#54eaff');
     text('P2  方向键 · ENTER · 右 SHIFT', 240, 697, 12, '#ff65d8');
     text('P / ESC 暂停     HI ' + game.highScore, 240, 752, 12, '#8c9eb9');

@@ -9,6 +9,7 @@ NV.weaponColors = {
 };
 /* 按武器和等级生成子弹，保留玩家归属。 */
 NV.shoot = function (game, player) {
+  NV.sound?.shoot(player);
   let level = player.level;
   let weapon = player.weapon;
   let color = player.id ? {

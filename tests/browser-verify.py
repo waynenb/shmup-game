@@ -22,6 +22,15 @@ async def main():
         b=await p.chromium.launch()
         # 仅测试脚本注入状态，不添加游戏调试键；file:// 离线验证。
         pg=await newpage(b,BASE)
+        assert await pg.evaluate("NV.audio.loaded === true && NV.audio.ready === false")
+        muted = await pg.evaluate("NV.audio.muted")
+        await pg.keyboard.press('KeyX')
+        await pg.wait_for_function("NV.audio.ready === true")
+        await pg.keyboard.press('KeyM')
+        assert await pg.evaluate("NV.audio.muted") != muted
+        await pg.keyboard.press('KeyM')
+        assert await pg.evaluate("NV.audio.muted") == muted
+        results['audio'] = await pg.evaluate("({...NV.audio})")
         await pg.keyboard.press('Digit2')
         await pg.wait_for_function("NV.game.players.length===2 && NV.game.mode===2")
         assert all(p['lives']==10 for p in (await snap(pg))['players'])
@@ -166,4 +175,5 @@ async def main():
         await b.close()
     print(json.dumps(results,ensure_ascii=False,indent=0))
     print("ERRORS:",errors)
+    assert not errors, errors
 asyncio.run(main())

@@ -7,6 +7,7 @@
 - 菜单：上下键或 W/S 选择，Enter / 空格确认；1 / 2 直接开始单人 / 双人。
 - P1：WASD 移动，空格射击，Q 或左 Shift 炸弹。
 - P2：方向键移动，Enter 射击，右 Shift 或 / 炸弹。
+- M：切换声音开关，自动保存静音设置。
 - P 或 Esc 暂停 / 继续；结束或通关后 Enter / R 返回菜单。
 - 手柄：第一个已连接手柄控制 P1，第二个控制 P2。左摇杆 / 十字键移动，A 射击，B 炸弹，Start 暂停；菜单可按第一个手柄 Start 开始。手柄 API 是否可用取决于浏览器及 file:// 安全策略；键盘始终可玩。
 
@@ -121,3 +122,11 @@ node tests/sim-test.cjs
 python tests/browser-verify.py
 python tests/browser-verify-drops.py
 ```
+
+## 合成音频
+
+所有声音由 Web Audio API 在本地程序化合成，无音频文件、依赖或网络请求。首次键盘、指针或手柄操作后才创建 / 恢复 AudioContext；不支持音频、播放失败或禁止本地存储时仍可正常游玩。M 键没有与现有操作冲突，菜单及底部 HUD 显示 SOUND ON/OFF，静音设置保存到 localStorage。
+
+菜单、关卡和 Boss 使用不同旋律与速度，关卡按 `NV.AUDIO.tracks` 数组取模选择调式，可继续添加关卡曲目。音乐采用 25ms lookahead 调度、柔和波形与低通滤波，切换时淡入淡出。四种武器各有低音量短音，每位玩家限流 80ms；炸弹使用滤波噪声与低频正弦下滑。声音统一经过主音量总线和压缩器。
+
+`NV.audio` 是冻结的只读状态入口：`loaded`、`muted`、`ready`（已创建 context）与 `track`（menu / stage-曲目 / boss-曲目）。`js/audio.js` 在 input.js 后加载。离线模拟包含无 AudioContext、存储禁用、首次解锁、音效节流、炸弹触发及曲目切换；浏览器脚本在普通 URL 下检查 loaded、交互解锁及 M 往返切换。
