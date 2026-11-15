@@ -1,0 +1,137 @@
+{
+  "method": "12 fixed seeds; 60Hz; god; stationary (240,690); no fire/pickup/bomb; fixed power N1=0 / S3=.65; visible bullets in 480x800, delayed excluded; thirds of duration; clean Boss phase 1/2/3 each 10s, skills carry over",
+  "source": "HEAD",
+  "seeds": [
+    1009,
+    8928,
+    16847,
+    24766,
+    32685,
+    40604,
+    48523,
+    56442,
+    64361,
+    72280,
+    80199,
+    88118
+  ],
+  "profiles": {
+    "N1": [
+      {
+        "stage": 1,
+        "early": 0.71,
+        "middle": 1.82,
+        "late": 2.73,
+        "boss": 12.18
+      },
+      {
+        "stage": 2,
+        "early": 2.43,
+        "middle": 4.5,
+        "late": 7.64,
+        "boss": 11.39
+      },
+      {
+        "stage": 3,
+        "early": 10.24,
+        "middle": 21.47,
+        "late": 37.12,
+        "boss": 9.43
+      },
+      {
+        "stage": 4,
+        "early": 46.83,
+        "middle": 74.97,
+        "late": 27.82,
+        "boss": 21.03
+      },
+      {
+        "stage": 5,
+        "early": 171.15,
+        "middle": 294.96,
+        "late": 16.34,
+        "boss": 29.14
+      },
+      {
+        "stage": 6,
+        "early": 261.76,
+        "middle": 248.49,
+        "late": 0.01,
+        "boss": 23.06
+      },
+      {
+        "stage": 7,
+        "early": 277.5,
+        "middle": 175.52,
+        "late": 0,
+        "boss": 10.21
+      },
+      {
+        "stage": 8,
+        "early": 275.08,
+        "middle": 159.38,
+        "late": 0,
+        "boss": 38.94
+      }
+    ],
+    "S3": [
+      {
+        "stage": 1,
+        "early": 3.38,
+        "middle": 7,
+        "late": 10.68,
+        "boss": 12.18
+      },
+      {
+        "stage": 2,
+        "early": 8.91,
+        "middle": 17.12,
+        "late": 27.13,
+        "boss": 11.39
+      },
+      {
+        "stage": 3,
+        "early": 48.3,
+        "middle": 99.65,
+        "late": 102.28,
+        "boss": 9.43
+      },
+      {
+        "stage": 4,
+        "early": 247.39,
+        "middle": 318,
+        "late": 8.22,
+        "boss": 21.03
+      },
+      {
+        "stage": 5,
+        "early": 276.2,
+        "middle": 248.01,
+        "late": 0,
+        "boss": 30.74
+      },
+      {
+        "stage": 6,
+        "early": 267.02,
+        "middle": 199.02,
+        "late": 0,
+        "boss": 23.06
+      },
+      {
+        "stage": 7,
+        "early": 280.28,
+        "middle": 149.37,
+        "late": 0,
+        "boss": 10.21
+      },
+      {
+        "stage": 8,
+        "early": 279.24,
+        "middle": 151.92,
+        "late": 0,
+        "boss": 40.2
+      }
+    ]
+  },
+  "sourceHash": "576d1d4de12a606a89684b1a0f0be74d821245055c0f7a39afc1b982cc82a693"
+}

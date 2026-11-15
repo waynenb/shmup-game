@@ -492,6 +492,20 @@ test('bomb caps, full bonus, independent co-op inventory and opening clamp', () 
   }
 });
 
+test('respawn restores exactly three bombs independently in both modes', () => {
+  for (const mode of [1,2]) for (const before of [0,5]) {
+    const {nv,game}=load('?debug=1&mode='+mode);
+    assert.equal(nv.DIFFICULTY.player.respawnBombs,3);
+    for(const player of game.players) {
+      player.bombs=before; player.invincible=0;
+      const other=game.players.find(p=>p!==player), otherBombs=other?.bombs;
+      nv.hitPlayer(game,player);
+      assert.equal(player.bombs,3); assert.equal(player.lives,9);
+      if(other) assert.equal(other.bombs,otherBombs);
+    }
+  }
+});
+
 test('damage, shield, invincibility, bombs, co-op survival and game over', () => {
   const sim = load('?debug=1&mode=2');
   const { nv, game } = sim;
@@ -647,6 +661,52 @@ test('dense continuous monotone curves, stage tiers and eased power', () => {
 });
 
 // 使用同一新手模拟器做密度回归；统计验收仍另跑 200 种子。
+test('late-stage intensity and pressure tiers increase with bounded adjacent ratios', () => {
+  const {nv,game}=load('?debug=1&mode=1');
+  for(let i=0;i<=100;i++) for(const power of [0,.1625,.65,1]) {
+    let previous;
+    for(let stage=3;stage<=8;stage++) {
+      game.stage=stage;
+      const d=nv.difficulty(game,i/100,power);
+      const c=nv.DIFFICULTY.stages[stage-1];
+      const pressure=c.bullet ? c.bullet.start+(c.bullet.end-c.bullet.start)*nv.smoothstep(i/100)+c.influence*power : d.intensity;
+      if(previous) {
+        assert.ok(pressure>previous.pressure && pressure/previous.pressure<=1.3);
+        for(const key of ['count','speed','hp','heavyHp','bulletSpeed','volley']) {
+          assert.ok(d[key]>previous.d[key] && d[key]/previous.d[key]<=1.3,key);
+        }
+        assert.ok(d.fireInterval<previous.d.fireInterval);
+        if(stage>4) assert.ok(d.intensity/previous.d.intensity<=1.3);
+      }
+      previous={d,pressure};
+    }
+  }
+  for(let i=4;i<8;i++) {
+    const a=nv.DIFFICULTY.stages[i-1].bullet,b=nv.DIFFICULTY.stages[i].bullet;
+    assert.ok(b.cap>a.cap && b.cap/a.cap<=1.3);
+  }
+});
+
+test('measured density fixture matches source and increases smoothly from stage 3', () => {
+  const measured=JSON.parse(fs.readFileSync(path.join(__dirname,'density-current.json'),'utf8'));
+  const baseline=JSON.parse(fs.readFileSync(path.join(__dirname,'density-baseline.json'),'utf8'));
+  const sources=modules.map(m=>[m,fs.readFileSync(path.join(root,m),'utf8')]);
+  const hash=require('node:crypto').createHash('sha256').update(JSON.stringify(sources)).digest('hex');
+  assert.equal(measured.sourceHash,hash,'Run node tests/density-profile.cjs --save after gameplay changes');
+  assert.equal(measured.seeds.length,12);
+  assert.deepEqual(measured.seeds,baseline.seeds);
+  for(const profile of ['N1','S3']) {
+    const rows=measured.profiles[profile],old=baseline.profiles[profile];
+    assert.deepEqual(rows.slice(0,3),old.slice(0,3),'Stages 1–3 density unchanged');
+    for(let i=3;i<8;i++) for(const key of ['early','middle','late','boss']) {
+      const ratio=rows[i][key]/rows[i-1][key];
+      assert.ok(ratio>=1 && ratio<=1.3,`${profile} stage ${i+1} ${key}: ${ratio}`);
+    }
+    const mean=r=> (r.early+r.middle+r.late)/3;
+    assert.ok(mean(rows[7])<=mean(old[7])*.75,'Stage 8 main-stage density drops at least 25%');
+  }
+});
+
 test('upgraded stage-1 occupancy and stage-3 pressure profiles', () => {
   let result;
   const filename = path.join(__dirname, 'novice-sim.cjs');
@@ -783,11 +843,11 @@ test('rain corridor, cross telegraph, scene variety and late-stage safety bounds
     nv.render(game);
     if(skill==='rain') {
       for(const bullet of game.bullets) assert.ok(Math.abs(bullet.x-w.x)>=w.gap/2+4);
-      assert.deepEqual([...new Set(game.bullets.map(b=>b.delay))],[0,.5,1]);
-      const delayed=game.bullets.find(b=>b.delay===1), first=game.bullets[0];
+      assert.deepEqual([...new Set(game.bullets.map(b=>b.delay))],[0,.5]);
+      const delayed=game.bullets.find(b=>b.delay===.5), first=game.bullets[0];
       game.state='playing';game.update(.25);
       assert.ok(game.bullets.includes(delayed),'Later rain rows survive offscreen cleanup');
-      assert.equal(delayed.y,-20);assert.equal(delayed.delay,.75);
+      assert.equal(delayed.y,-20);assert.equal(delayed.delay,.25);
       assert.ok(first.y>-20);
     }
     else for(const bullet of game.bullets) {

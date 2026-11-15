@@ -82,14 +82,14 @@ NV.updateBoss = function (game, dt) {
     } else if (b.skill === 'wall') {
       for (let x=12;x<480;x+=c.spacing) if (Math.abs(x-w.x)>=c.gap/2+4) shot(x,130,Math.PI/2);
     } else if (b.skill === 'rain') {
-      // 三层错时抵达，同一条宽安全走廊贯穿整场弹雨。
-      for (let row=0;row<3;row++) for (let x=12;x<480;x+=c.spacing)
+      // 按关卡配置层数错时抵达，同一条宽安全走廊贯穿整场弹雨。
+      for (let row=0;row<(c.rain ?? 3);row++) for (let x=12;x<480;x+=c.spacing)
         if (Math.abs(x-w.x)>=c.gap/2+4) {
           shot(x,-20,Math.PI/2,c.speed,4,'#8feaff');
           game.bullets[game.bullets.length-1].delay = row*.5;
         }
     } else if (b.skill === 'cross') {
-      for (let arm=0;arm<4;arm++) for (let i=0;i<7;i++)
+      for (let arm=0;arm<4;arm++) for (let i=0;i<(c.cross ?? 7);i++)
         shot(w.x,w.y,arm*Math.PI/2,65+i*12,5,'#ffc975');
     } else if (b.skill === 'homing') {
       for (let i=0;i<s.homingCount;i++) {

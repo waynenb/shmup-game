@@ -110,7 +110,8 @@ NV.updateStage = function (game, deltaTime) {
     if (player) NV.drop(game, player.x, player.y - 80, 'P');
     game.firstSupply = true;
   }
-  if (game.stageTime > 2 && game.waveCharge >= 1 && game.wave < c.waves) {
+  // 后五关持续补波到标尺结束前 8 秒，避免高火力下波次提前耗尽、后段空场。
+  if (game.stageTime > 2 && game.waveCharge >= 1 && (game.wave < c.waves || (game.stage > 3 && game.stageTime < c.duration - 8))) {
     game.waveCharge -= 1;
     let count = NV.smoothCount(d.count);
     for (let i = 0; i < count; i++) {

@@ -15,7 +15,7 @@ NV.spawnEnemy = function (game, type, x) {
     maxHp: hp,
     armed: Math.random() < d.armed,
     t: 0,
-    fire: d.fireInterval * NV.rand(...c.initialFire),
+    fire: d.fireInterval * NV.enemyFireScale(game) * NV.rand(...c.initialFire),
     speed: d.speed * (type === 1 ? c.fastSpeed : 1),
     lastHit: 0
   });
@@ -40,8 +40,8 @@ NV.updateEnemies = function (game, deltaTime) {
       enemy.x = NV.clamp(enemy.baseX + drift,25,455);
     }
     enemy.fire -= deltaTime;
-    if (enemy.armed && enemy.fire <= 0 && enemy.y > 10 && (game.stage <= 3 || game.bullets.length < 360)) {
-      enemy.fire = d.fireInterval * (enemy.type === 2 ? c.heavyFire : 1);
+    if (enemy.armed && enemy.fire <= 0 && enemy.y > 10 && (game.stage <= 3 || game.bullets.length < NV.DIFFICULTY.stages[game.stage-1].bullet.cap)) {
+      enemy.fire = d.fireInterval * NV.enemyFireScale(game) * (enemy.type === 2 ? c.heavyFire : 1);
       let player = game.players.reduce((nearest, candidate) => {
         if (candidate.lives <= 0) return nearest;
         return !nearest || Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) <

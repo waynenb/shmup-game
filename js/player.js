@@ -28,6 +28,7 @@ NV.hitPlayer = function (game, player) {
     return;
   }
   player.lives--;
+  if (player.lives > 0) player.bombs = Math.min(NV.DIFFICULTY.player.respawnBombs, NV.DIFFICULTY.player.maxBombs);
   player.level = Math.max(1, player.level - 1);
   player.invincible = NV.DIFFICULTY.player.invincible;
   game.spark(player.x, player.y, player.color, 35);
