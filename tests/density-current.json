@@ -1,5 +1,5 @@
 {
-  "sourceHash": "f21582162941bbedcdc47a2c10f9ae67f1a15c3f5f3c1c8e9a402632e5788bc1",
+  "sourceHash": "ea048506ca79e8a0e6c5abea2873b42edbf56ceb724cbc13ee2cf9dfdd873143",
   "method": "fixed seeds (see seeds array); 60Hz; god; stationary (240,690); no fire/pickup/bomb; fixed power N1=0 / S3=.65; visible bullets in 480x800, delayed excluded; thirds of duration; clean Boss phase 1/2/3 each 10s, skills carry over",
   "source": "working tree",
   "seeds": [

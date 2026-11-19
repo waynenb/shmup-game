@@ -25,6 +25,7 @@ NV.hitPlayer = function (game, player) {
     player.shield = 0;
     player.invincible = NV.DIFFICULTY.player.shieldInvincible;
     game.spark(player.x, player.y, player.color, 25);
+    game.cue(player.x, player.y, player.id, 'shield', player.color);
     return;
   }
   player.lives--;
@@ -35,6 +36,7 @@ NV.hitPlayer = function (game, player) {
   player.x = game.mode === 2 ? player.id ? 320 : 160 : 240;
   player.y = 690;
   game.toast(player.x, 640, player.lives ? 'REBOOT / 重新出击' : 'SIGNAL LOST', player.color);
+  if (player.lives > 0) game.cue(player.x, player.y, player.id, 'respawn', player.color);
 };
 /* 更新玩家操作、炸弹与碰撞判定。 */
 NV.updatePlayers = function (game, deltaTime) {

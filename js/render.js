@@ -222,6 +222,35 @@ NV.render = function (game) {
     context.fillRect(particle.x, particle.y, particle.size, particle.size);
   }
   context.globalAlpha = 1;
+  for (let cue of game.cues) {
+    let age = 1 - cue.life / cue.max;
+    let label = cue.kind === 'shield' ? 'P' + (cue.playerId + 1) + ' SHIELD BREAK' : 'P' + (cue.playerId + 1) + ' REBOOT';
+    context.save();
+    context.globalAlpha = Math.max(0, 1 - age);
+    context.translate(cue.x, cue.y);
+    context.lineWidth = 3;
+    glow(cue.kind === 'shield' ? '#a7ffff' : cue.col, 14);
+    context.strokeStyle = cue.kind === 'shield' ? '#a7ffff' : cue.col;
+    context.beginPath();
+    if (cue.kind === 'shield') {
+      let radius = 30 + age * 8;
+      context.arc(0, 0, radius, .6, Math.PI - .4);
+      context.stroke();
+      context.beginPath();
+      context.arc(0, 0, radius, Math.PI + .6, Math.PI * 2 - .4);
+    } else {
+      context.arc(0, 0, 28 + age * 34, 0, Math.PI * 2);
+      context.moveTo(-10, 0);
+      context.lineTo(10, 0);
+      context.moveTo(0, -10);
+      context.lineTo(0, 10);
+    }
+    context.stroke();
+    text(label, NV.clamp(cue.x, 96, 384) - cue.x, cue.kind === 'shield' ? -46 : 48, 16, cue.col);
+    context.restore();
+  }
+  context.globalAlpha = 1;
+  context.shadowBlur = 0;
   for (let message of game.texts) {
     text(message.text, message.x, message.y, 13, message.col);
   }
