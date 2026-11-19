@@ -27,6 +27,7 @@
     bullets: [],
     particles: [],
     texts: [],
+    cues: [],
     flash: 0,
     highScore: savedHighScore,
     stars: Array.from({
@@ -68,6 +69,18 @@
         });
       }
     },
+    /* 在事件坐标记一次局部提示，随时间淡出，不跟随之后的移动。 */
+    cue(x, y, playerId, kind, color) {
+      this.cues.push({
+        x,
+        y,
+        playerId,
+        kind,
+        col: color,
+        life: .8,
+        max: .8
+      });
+    },
     /* 添加会向上漂移的提示文字。 */
     toast(x, y, text, color) {
       this.texts.push({
@@ -82,6 +95,7 @@
     finish(state) {
       this.state = state;
       this.stateTime = 0;
+      this.cues = [];
       this.award(0, 0);
     },
     /* 创建单人或双人队伍并开始关卡。 */
@@ -93,6 +107,7 @@
       }, (_, i) => NV.makePlayer(i, mode));
       this.particles = [];
       this.texts = [];
+      this.cues = [];
       this.flash = 0;
       NV.beginStage(this, debug ? NV.clamp(parseInt(params.get('stage'), 10) || 1, 1, NV.themes.length) : 1);
     },
@@ -173,6 +188,10 @@
         particle.life -= deltaTime;
       }
       this.particles = this.particles.filter(effect => effect.life > 0);
+      for (let cue of this.cues) {
+        cue.life -= deltaTime;
+      }
+      this.cues = this.cues.filter(effect => effect.life > 0);
       for (let message of this.texts) {
         message.life -= deltaTime;
         message.y -= 22 * deltaTime;

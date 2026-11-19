@@ -930,4 +930,172 @@ test('audio unlock, independent shot throttles, bomb and tracks', () => {
   assert.equal(pointer.nv.audio.ready, true);
 });
 
+function trackCanvas(ctx) {
+  const arcs = [];
+  const labels = [];
+  let x = 0;
+  let y = 0;
+  const stack = [];
+  ctx.save = () => stack.push([x, y]);
+  ctx.restore = () => {
+    const origin = stack.pop();
+    if (origin) [x, y] = origin;
+  };
+  ctx.translate = (dx, dy) => { x += dx; y += dy; };
+  ctx.arc = (ax, ay, radius, start, end) => arcs.push({ x: x + ax, y: y + ay, radius, start, end });
+  ctx.fillText = (text, tx, ty) => labels.push({ text, x: x + tx, y: y + ty });
+  return { arcs, labels };
+}
+
+test('respawn cue is born on the new ship while death sparks and rules stay put', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  const player = game.players[0];
+  Object.assign(player, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 0, lives: 10 });
+  game.enemies = [];
+  game.boss = null;
+  game.particles = [];
+  game.texts = [];
+  game.flash = 0;
+  game.bullets = [{ x: 180, y: 420, vx: 0, vy: 0, r: 4, col: '#ff657f' }];
+  game.update(1 / 60);
+  assert.equal(player.lives, 9);
+  assert.equal(player.level, 2);
+  assert.equal(player.bombs, 3);
+  assert.equal(player.x, 240);
+  assert.equal(player.y, 690);
+  assert.equal(player.invincible, 2.2);
+  assert.equal(player.shield, 0);
+  assert.equal(game.flash, 0);
+  assert.equal(nv.DIFFICULTY.player.invincible, 2.2);
+  assert.equal(nv.DIFFICULTY.player.shieldInvincible, 1);
+  assert.equal(nv.DIFFICULTY.player.respawnBombs, 3);
+  assert.equal(game.particles.filter(particle => particle.x === 180 && particle.y === 420).length, 35);
+  assert.equal(game.texts.length, 1);
+  assert.equal(game.texts[0].text, 'REBOOT / 重新出击');
+  assert.equal(game.texts[0].x, 240);
+  assert.equal(game.texts[0].y, 640);
+  assert.equal(game.cues.length, 1);
+  assert.deepEqual(
+    { kind: game.cues[0].kind, x: game.cues[0].x, y: game.cues[0].y, playerId: game.cues[0].playerId, life: game.cues[0].life },
+    { kind: 'respawn', x: 240, y: 690, playerId: 0, life: .8 }
+  );
+  const drawn = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.ok(drawn.arcs.some(arc => arc.x === 240 && arc.y === 690 && arc.end - arc.start === Math.PI * 2));
+  assert.ok(drawn.labels.some(label => label.text === 'P1 REBOOT' && label.x === 240 && label.y === 738));
+  assert.equal(game.flash, 0);
+});
+
+test('shield break cue stays on that ship and does not use the respawn marker', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  const player = game.players[0];
+  Object.assign(player, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 12, lives: 10 });
+  game.particles = [];
+  game.texts = [];
+  game.flash = 0;
+  nv.hitPlayer(game, player);
+  assert.equal(player.lives, 10);
+  assert.equal(player.level, 3);
+  assert.equal(player.bombs, 5);
+  assert.equal(player.x, 180);
+  assert.equal(player.y, 420);
+  assert.equal(player.invincible, 1);
+  assert.equal(player.shield, 0);
+  assert.equal(game.particles.length, 25);
+  assert.ok(game.particles.every(particle => particle.x === 180 && particle.y === 420));
+  assert.equal(game.texts.length, 0);
+  assert.equal(game.cues.length, 1);
+  assert.equal(game.cues[0].kind, 'shield');
+  assert.equal(game.cues[0].x, 180);
+  assert.equal(game.cues[0].y, 420);
+  assert.equal(game.cues[0].playerId, 0);
+  assert.equal(game.flash, 0);
+  const drawn = trackCanvas(game.ctx);
+  nv.render(game);
+  const broken = drawn.arcs.filter(arc => arc.x === 180 && arc.y === 420 && arc.end - arc.start < Math.PI);
+  assert.equal(broken.length, 2);
+  assert.equal(drawn.arcs.some(arc => arc.x === 180 && arc.y === 420 && arc.end - arc.start === Math.PI * 2), false);
+  assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
+  assert.equal(drawn.labels.some(label => label.text.includes('REBOOT')), false);
+  player.lives = 1;
+  player.invincible = 0;
+  player.shield = 0;
+  nv.hitPlayer(game, player);
+  assert.equal(player.lives, 0);
+  assert.equal(player.x, 240);
+  assert.equal(player.y, 690);
+  assert.equal(game.cues.length, 1);
+  assert.equal(game.cues[0].kind, 'shield');
+  assert.equal(game.texts.at(-1).text, 'SIGNAL LOST');
+});
+
+test('cues follow the hit player, then expire, pause, and reset without sticking', () => {
+  const { nv, game } = load('?debug=1&mode=2');
+  game.state = 'playing';
+  const [first, second] = game.players;
+  Object.assign(first, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 12, lives: 10 });
+  Object.assign(second, { x: 100, y: 300, level: 3, bombs: 5, invincible: 0, shield: 0, lives: 10 });
+  game.particles = [];
+  game.bullets = [
+    { x: 180, y: 420, vx: 0, vy: 0, r: 4, col: '#ff657f' },
+    { x: 100, y: 300, vx: 0, vy: 0, r: 4, col: '#ff657f' }
+  ];
+  game.update(1 / 60);
+  assert.equal(first.lives, 10);
+  assert.equal(first.x, 180);
+  assert.equal(first.invincible, 1);
+  assert.equal(second.lives, 9);
+  assert.equal(second.level, 2);
+  assert.equal(second.bombs, 3);
+  assert.equal(second.x, 320);
+  assert.equal(second.y, 690);
+  assert.equal(second.invincible, 2.2);
+  assert.deepEqual(Array.from(game.cues, cue => [cue.kind, cue.playerId, cue.x, cue.y, cue.life]), [
+    ['shield', 0, 180, 420, .8],
+    ['respawn', 1, 320, 690, .8]
+  ]);
+  assert.equal(game.particles.filter(particle => particle.x === 180 && particle.y === 420).length, 25);
+  assert.equal(game.particles.filter(particle => particle.x === 100 && particle.y === 300).length, 35);
+  first.x = 400;
+  second.x = 200;
+  assert.equal(game.cues[0].x, 180);
+  assert.equal(game.cues[1].x, 320);
+  game.state = 'paused';
+  game.update(1);
+  assert.equal(game.cues[0].life, .8);
+  assert.equal(game.cues[1].life, .8);
+  game.state = 'playing';
+  game.bullets = [];
+  game.enemies = [];
+  game.boss = null;
+  game.update(.25);
+  assert.ok(Math.abs(game.cues[0].life - .55) < 1e-9);
+  assert.ok(Math.abs(game.cues[1].life - .55) < 1e-9);
+  assert.equal(game.cues[0].playerId, 0);
+  assert.equal(game.cues[1].playerId, 1);
+  const drawn = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
+  assert.ok(drawn.labels.some(label => label.text === 'P2 REBOOT' && label.x === 320 && label.y === 738));
+  game.finish('gameover');
+  assert.equal(game.state, 'gameover');
+  assert.equal(game.cues.length, 0);
+  game.cue(10, 10, 1, 'respawn', '#fff');
+  game.start(1);
+  assert.equal(game.cues.length, 0);
+  assert.equal(game.mode, 1);
+  assert.equal(game.players.length, 1);
+  const alone = game.players[0];
+  alone.invincible = 2;
+  nv.hitPlayer(game, alone);
+  assert.equal(game.cues.length, 0);
+  game.god = true;
+  alone.invincible = 0;
+  nv.hitPlayer(game, alone);
+  assert.equal(game.cues.length, 0);
+  assert.equal(alone.lives, 10);
+});
+
 console.log(`\n${checks} offline simulation groups passed.`);
