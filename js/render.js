@@ -1,38 +1,58 @@
-// Canvas 场景、角色、特效、菜单与 HUD 绘制。
+// Canvas 场景、角色、特效、菜单与 HUD 绘制。只改画法，不改碰撞和规则。
 'use strict';
+
+/* 1.5 Hz 连续呼吸，范围落在 min–max，不用开关式闪烁。 */
+function breath(time, min, max) {
+  return min + (max - min) * (0.5 + 0.5 * Math.sin(time * Math.PI * 3));
+}
+
+/* 浮动字离开顶栏和底栏保留带。 */
+function floatY(y) {
+  return NV.clamp(y, 88, 736);
+}
 
 /* 按图层绘制当前帧及对应状态的界面。 */
 NV.render = function (game) {
   let context = game.ctx;
   let time = game.clock;
   let theme = game.theme;
-  context.fillStyle = theme.bg;
+  context.shadowBlur = 0;
+  context.globalAlpha = 1;
+  context.setLineDash?.([]);
+  context.fillStyle = '#050914';
   context.fillRect(0, 0, 480, 800);
+  NV.renderScene(game, context, time, theme);
   for (let star of game.stars) {
     let y = (star.y + time * star.speed) % 800;
-    context.globalAlpha = star.alpha;
-    context.fillStyle = theme.accent;
-    context.fillRect(star.x, y, star.size, star.size * 2);
+    let bright = star.size > 1.4;
+    context.globalAlpha = bright ? .55 : .45;
+    context.fillStyle = bright ? '#3B5B87' : '#243B5E';
+    context.fillRect(star.x, y, 1, bright ? 4 : 2);
   }
   context.globalAlpha = 1;
-  NV.renderScene(game, context, time, theme);
-  const text = (label, x, y, size = 16, color = '#eaf6ff', align = 'center', maxWidth) => {
-    context.font = `${size >= 24 ? 'bold ' : ''}${size}px monospace`;
+  const text = (label, x, y, size = 16, color = '#EDF4FF', align = 'center', maxWidth) => {
+    context.font = `${size >= 24 ? '700 ' : '600 '}${size}px "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace`;
     context.textAlign = align;
     context.fillStyle = color;
     if (maxWidth) context.fillText(label, x, y, maxWidth);
     else context.fillText(label, x, y);
   };
-  const glow = (color, blur = 12) => {
+  const glow = (color, blur = 6) => {
     context.shadowColor = color;
-    context.shadowBlur = blur;
+    context.shadowBlur = Math.min(blur, 6);
   };
+  for (let particle of game.particles) {
+    context.globalAlpha = Math.min(1, particle.life / particle.max);
+    context.fillStyle = particle.col;
+    context.fillRect(particle.x, particle.y, particle.size, particle.size);
+  }
+  context.globalAlpha = 1;
+  context.shadowBlur = 0;
   for (let pickup of game.pickups) {
     context.save();
     context.translate(pickup.x, pickup.y);
-    context.globalAlpha = .72 + .28 * Math.sin(pickup.t * 6);
+    context.globalAlpha = .72 + .28 * Math.sin(pickup.t * Math.PI * 2);
     let color = NV.pickupColors[pickup.type];
-    glow(color);
     context.fillStyle = '#10192c';
     context.strokeStyle = color;
     context.lineWidth = 2;
@@ -43,47 +63,46 @@ NV.render = function (game) {
     text(pickup.type, 0, 6, 18, color);
     context.restore();
   }
-  for (let shot of game.shots) {
-    glow(shot.col);
-    context.strokeStyle = shot.col;
-    context.lineWidth = shot.r;
-    context.beginPath();
-    context.moveTo(shot.x, shot.y);
-    context.lineTo(shot.x - shot.vx * .025, shot.y + shot.len);
-    context.stroke();
-    if (shot.homing) {
-      context.fillStyle = '#fff';
-      context.fillRect(shot.x - 2, shot.y - 3, 4, 7);
-    }
-  }
-  context.shadowBlur = 0;
   for (let enemy of game.enemies) {
     context.save();
     context.translate(enemy.x, enemy.y);
-    let color = enemy.type === 2 ? theme.secondary : theme.accent;
-    glow(color, 8);
-    context.fillStyle = '#151d35';
-    context.strokeStyle = color;
+    let slot = enemy.type === 2 ? '#B36BFF' : enemy.type === 1 ? '#FF9F1C' : '#FF5252';
+    if (enemy.type === 2) glow(slot, 4);
+    context.fillStyle = '#240A10';
+    context.strokeStyle = slot;
     context.lineWidth = 2;
     context.beginPath();
-    context.moveTo(0, 22);
-    context.lineTo(-enemy.r, -10);
-    context.lineTo(-8, -5);
-    context.lineTo(0, -17);
-    context.lineTo(8, -5);
-    context.lineTo(enemy.r, -10);
+    if (enemy.type === 1) {
+      context.moveTo(0, enemy.r);
+      context.lineTo(-enemy.r, -enemy.r * .2);
+      context.lineTo(-enemy.r * .35, -enemy.r * .85);
+      context.lineTo(0, -enemy.r * .35);
+      context.lineTo(enemy.r * .35, -enemy.r * .85);
+      context.lineTo(enemy.r, -enemy.r * .2);
+    } else if (enemy.type === 2) {
+      context.moveTo(0, enemy.r * .9);
+      context.lineTo(-enemy.r, enemy.r * .2);
+      context.lineTo(-enemy.r * .72, -enemy.r * .85);
+      context.lineTo(0, -enemy.r * .2);
+      context.lineTo(enemy.r * .72, -enemy.r * .85);
+      context.lineTo(enemy.r, enemy.r * .2);
+    } else {
+      context.moveTo(0, enemy.r * .85);
+      context.lineTo(-enemy.r * .55, -enemy.r * .2);
+      context.lineTo(0, -enemy.r * .9);
+      context.lineTo(enemy.r * .55, -enemy.r * .2);
+    }
     context.closePath();
     context.fill();
     context.stroke();
-    context.fillStyle = color;
-    context.fillRect(-4, -5, 8, 10);
+    context.shadowBlur = 0;
     context.restore();
   }
   if (game.boss) {
     let boss = game.boss;
     context.save();
     context.translate(boss.x, boss.y);
-    glow(theme.secondary, 20);
+    glow(theme.secondary, 4);
     context.strokeStyle = theme.secondary;
     context.fillStyle = '#18152d';
     context.lineWidth = 3;
@@ -109,19 +128,18 @@ NV.render = function (game) {
       context.lineTo(78, 23);
       context.lineTo(78, -30);
       context.lineTo(0, -52);
-    }
-    else {
-      // 冰晶六角、熔炉齿轮、都市双翼、轨道星环、母舰八瓣核心。
-      const points = [0,0,0,0,6,12,10,16,8][game.stage];
-      for (let i=0;i<points*2;i++) {
-        const angle = i*Math.PI/points-Math.PI/2;
-        const radius = i%2 ? 42 : 76;
-        context.lineTo(Math.cos(angle)*radius,Math.sin(angle)*radius*(game.stage===6?.6:1));
+    } else {
+      const points = [0, 0, 0, 0, 6, 12, 10, 16, 8][game.stage];
+      for (let i = 0; i < points * 2; i++) {
+        const angle = i * Math.PI / points - Math.PI / 2;
+        const radius = i % 2 ? 42 : 76;
+        context.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius * (game.stage === 6 ? .6 : 1));
       }
     }
     context.closePath();
     context.fill();
     context.stroke();
+    context.shadowBlur = 0;
     context.fillStyle = theme.secondary;
     context.beginPath();
     context.arc(0, 0, 12 + boss.phase * 3, 0, Math.PI * 2);
@@ -136,134 +154,240 @@ NV.render = function (game) {
   if (game.boss && game.boss.warning) {
     const b = game.boss, w = b.warning;
     context.save();
-    glow('#ff77df', 16);
+    context.shadowBlur = 0;
     context.strokeStyle = '#ff77df';
     context.lineWidth = 2;
     context.setLineDash([10, 8]);
     context.beginPath();
-    if ((b.skill === 'wall' || b.skill === 'rain')) {
-      context.moveTo(w.x-w.gap/2, 130); context.lineTo(w.x-w.gap/2, 800);
-      context.moveTo(w.x+w.gap/2, 130); context.lineTo(w.x+w.gap/2, 800);
+    if (b.skill === 'wall' || b.skill === 'rain') {
+      context.moveTo(w.x - w.gap / 2, 130); context.lineTo(w.x - w.gap / 2, 800);
+      context.moveTo(w.x + w.gap / 2, 130); context.lineTo(w.x + w.gap / 2, 800);
     } else if (b.skill === 'laser' || b.skill === 'homing') {
       context.moveTo(w.x, w.y); context.lineTo(w.x, 800);
     } else if (b.skill === 'cross') {
-      context.moveTo(0,w.y); context.lineTo(480,w.y);
-      context.moveTo(w.x,80); context.lineTo(w.x,800);
+      context.moveTo(0, w.y); context.lineTo(480, w.y);
+      context.moveTo(w.x, 80); context.lineTo(w.x, 800);
     } else if (b.skill === 'charge') {
-      context.moveTo(b.x,b.y); context.lineTo(w.x,NV.DIFFICULTY.skill.chargeY);
+      context.moveTo(b.x, b.y); context.lineTo(w.x, NV.DIFFICULTY.skill.chargeY);
     } else {
-      context.arc(b.x,b.y,b.r+12+Math.sin(b.t*18)*4,0,Math.PI*2);
+      context.arc(b.x, b.y, b.r + 12, 0, Math.PI * 2);
     }
-    context.stroke(); context.restore();
+    context.stroke();
+    context.setLineDash([]);
+    context.restore();
   }
-  for (let bullet of game.bullets) {
-    if (bullet.laser || bullet.homing) {
-      context.strokeStyle = bullet.col; context.lineWidth = bullet.laser ? 5 : 2;
-      context.beginPath(); context.moveTo(bullet.x,bullet.y);
-      const length = Math.hypot(bullet.vx,bullet.vy) || 1;
-      context.lineTo(bullet.x-bullet.vx/length*20,bullet.y-bullet.vy/length*20); context.stroke();
-    }
-    glow(bullet.col, 9);
-    context.fillStyle = bullet.col;
-    context.beginPath();
-    context.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
-    context.fill();
-    context.fillStyle = '#fff';
-    context.beginPath();
-    context.arc(bullet.x, bullet.y, bullet.r * .4, 0, Math.PI * 2);
-    context.fill();
-  }
-  context.shadowBlur = 0;
   for (let player of game.players) {
-    if (player.lives <= 0) {
-      continue;
-    }
+    if (player.lives <= 0) continue;
+    let hull = player.id ? '#FF66C4' : '#38F2FF';
+    let fill = player.id ? '#290B22' : '#092233';
     context.save();
     context.translate(player.x, player.y);
-    if (player.invincible > 0 && Math.floor(time * 15) % 2) {
-      context.globalAlpha = .3;
-    }
-    glow(player.color, 15);
-    context.fillStyle = player.color;
+    context.globalAlpha = player.invincible > 0 ? breath(time, .55, 1) : 1;
+    glow(hull, 6);
+    context.strokeStyle = hull;
+    context.fillStyle = hull;
     context.beginPath();
-    context.moveTo(-7, 13);
-    context.lineTo(0, 28 + Math.sin(time * 35) * 7);
-    context.lineTo(7, 13);
+    context.moveTo(-5, 12);
+    context.lineTo(0, 22 + Math.sin(time * Math.PI * 2) * 3);
+    context.lineTo(5, 12);
     context.fill();
-    context.fillStyle = '#12273c';
-    context.strokeStyle = player.color;
+    context.shadowBlur = 0;
+    context.fillStyle = fill;
     context.lineWidth = 2;
     context.beginPath();
-    context.moveTo(0, -23);
-    context.lineTo(9, -2);
-    context.lineTo(22, 17);
-    context.lineTo(5, 12);
-    context.lineTo(0, 17);
-    context.lineTo(-5, 12);
-    context.lineTo(-22, 17);
-    context.lineTo(-9, -2);
+    if (player.id) {
+      context.moveTo(-8, -23);
+      context.lineTo(-18, -6);
+      context.lineTo(-22, 17);
+      context.lineTo(-6, 8);
+      context.lineTo(0, -8);
+      context.lineTo(6, 8);
+      context.lineTo(22, 17);
+      context.lineTo(18, -6);
+      context.lineTo(8, -23);
+      context.lineTo(0, -10);
+    } else {
+      context.moveTo(0, -23);
+      context.lineTo(5, -6);
+      context.lineTo(22, 17);
+      context.lineTo(4, 8);
+      context.lineTo(0, 14);
+      context.lineTo(-4, 8);
+      context.lineTo(-22, 17);
+      context.lineTo(-5, -6);
+    }
     context.closePath();
     context.fill();
+    context.strokeStyle = hull;
     context.stroke();
     context.fillStyle = '#e8ffff';
-    context.fillRect(-2, -9, 4, 11);
+    context.fillRect(player.id ? -6 : -1.5, -8, player.id ? 3 : 3, 8);
+    if (player.id) context.fillRect(3, -8, 3, 8);
+    context.restore();
     if (player.shield > 0) {
-      context.strokeStyle = '#a7ffff';
-      context.globalAlpha = .5 + .2 * Math.sin(time * 6);
+      context.save();
+      context.translate(player.x, player.y);
+      context.rotate(time * 20 * Math.PI / 180);
+      context.globalAlpha = breath(time, .7, 1);
+      context.strokeStyle = '#5CA8FF';
+      context.lineWidth = 2;
       context.beginPath();
-      context.arc(0, 0, 32, 0, Math.PI * 2);
+      for (let i = 0; i < 6; i++) {
+        let angle = -Math.PI / 2 + i * Math.PI / 3;
+        context.lineTo(Math.cos(angle) * 32, Math.sin(angle) * 32);
+      }
+      context.closePath();
       context.stroke();
+      context.restore();
+    }
+  }
+  context.shadowBlur = 0;
+  context.globalAlpha = 1;
+  for (let shot of game.shots) {
+    context.strokeStyle = shot.col;
+    context.lineWidth = shot.r + 1.5;
+    context.globalAlpha = .25;
+    context.beginPath();
+    context.moveTo(shot.x, shot.y);
+    context.lineTo(shot.x - shot.vx * .025, shot.y + shot.len);
+    context.stroke();
+    context.globalAlpha = 1;
+    context.lineWidth = shot.r;
+    context.beginPath();
+    context.moveTo(shot.x, shot.y);
+    context.lineTo(shot.x - shot.vx * .025, shot.y + shot.len);
+    context.stroke();
+    context.fillStyle = shot.owner ? '#FF99D8' : '#7AF7FF';
+    context.fillRect(shot.x - 1.5, shot.y - 1.5, 3, 3);
+  }
+  for (let cue of game.cues) {
+    let age = 1 - cue.life / cue.max;
+    let label = cue.kind === 'shield' ? 'P' + (cue.playerId + 1) + ' SHIELD BREAK' : '';
+    let labelY = floatY(cue.y - 46);
+    context.save();
+    context.translate(cue.x, cue.y);
+    context.lineWidth = 2;
+    context.shadowBlur = 0;
+    if (cue.kind === 'shield') {
+      let fade = Math.max(0, 1 - age / .3125);
+      context.globalAlpha = fade;
+      context.strokeStyle = '#5CA8FF';
+      let reach = 16 + age * 28;
+      for (let corner of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        context.beginPath();
+        context.moveTo(corner[0] * 8, corner[1] * 8);
+        context.lineTo(corner[0] * reach, corner[1] * reach * .3);
+        context.lineTo(corner[0] * reach * .3, corner[1] * reach);
+        context.stroke();
+      }
+    } else {
+      context.globalAlpha = Math.max(0, 1 - age);
+      context.strokeStyle = cue.col;
+      context.setLineDash([6, 5]);
+      context.lineDashOffset = -time * 30;
+      context.beginPath();
+      context.arc(0, 0, 30, 0, Math.PI * 2);
+      context.stroke();
+      context.setLineDash([]);
+    }
+    if (label) {
+      context.globalAlpha = Math.max(0, 1 - age);
+      text(label, NV.clamp(cue.x, 96, 384) - cue.x, labelY - cue.y, 16, cue.col);
     }
     context.restore();
   }
-  for (let particle of game.particles) {
-    context.globalAlpha = particle.life / particle.max;
-    context.fillStyle = particle.col;
-    context.fillRect(particle.x, particle.y, particle.size, particle.size);
+  context.globalAlpha = 1;
+  context.shadowBlur = 0;
+  for (let message of game.texts) {
+    text(message.text, message.x, floatY(message.y), 13, message.col);
+  }
+  for (let bullet of game.bullets) {
+    let rim = bullet.laser ? '#FF9E1B' : bullet.homing ? '#C266FF' : '#FF3355';
+    context.strokeStyle = rim;
+    context.fillStyle = rim;
+    context.lineWidth = 1.5;
+    context.beginPath();
+    if (bullet.laser) {
+      let length = Math.hypot(bullet.vx, bullet.vy) || 1;
+      context.moveTo(bullet.x, bullet.y);
+      context.lineTo(bullet.x - bullet.vx / length * bullet.r, bullet.y - bullet.vy / length * bullet.r);
+      context.lineWidth = Math.max(1.5, bullet.r);
+      context.stroke();
+    } else if (bullet.homing) {
+      context.moveTo(bullet.x, bullet.y - bullet.r);
+      context.lineTo(bullet.x + bullet.r, bullet.y);
+      context.lineTo(bullet.x, bullet.y + bullet.r);
+      context.lineTo(bullet.x - bullet.r, bullet.y);
+      context.closePath();
+      context.stroke();
+    } else {
+      context.arc(bullet.x, bullet.y, bullet.r, 0, Math.PI * 2);
+      context.stroke();
+    }
+  }
+  for (let bullet of game.bullets) {
+    if (bullet.y <= 64 || bullet.y >= 772) continue;
+    context.fillStyle = '#FFF8EB';
+    context.beginPath();
+    context.arc(bullet.x, bullet.y, Math.max(1.2, bullet.r * .42), 0, Math.PI * 2);
+    context.fill();
   }
   context.globalAlpha = 1;
-  for (let message of game.texts) {
-    text(message.text, message.x, message.y, 13, message.col);
-  }
   if (game.state !== 'menu') {
-    context.fillStyle = '#050b19dc';
-    context.fillRect(0, 0, 480, 76);
+    context.fillStyle = 'rgba(6, 11, 23, 0.88)';
+    context.fillRect(0, 0, 480, 64);
+    context.save();
+    context.beginPath();
+    context.rect(0, 772, 480, 28);
+    for (let player of game.players) {
+      if (player.lives > 0 && player.y + 26 >= 772 && player.y - 24 <= 800) {
+        context.rect(player.x - 26, 770, 52, 32);
+      }
+    }
+    context.clip('evenodd');
+    context.fillRect(0, 772, 480, 28);
+    context.fillStyle = '#1F3354';
+    context.fillRect(0, 772, 480, 1);
+    context.restore();
+    context.fillStyle = '#1F3354';
+    context.fillRect(0, 64, 480, 1);
     for (let player of game.players) {
       let x = player.id ? 253 : 16;
-      text('P' + (player.id + 1) + '  ' + String(player.score).padStart(7, '0'), x, 22, 15, player.color, 'left');
-      text('♥×' + player.lives + '   BOMB ' + player.bombs, x, 43, 12, '#daeaff', 'left', 211);
-      text(player.weapon + ' / LV.' + player.level + (player.lives <= 0 ? '  OFFLINE' : ''), x, 62, 12, player.color, 'left');
+      let tag = player.id ? '#FF66C4' : '#38F2FF';
+      text('P' + (player.id + 1) + '  ' + String(player.score).padStart(7, '0'), x, 22, 15, tag, 'left');
+      text('♥×' + player.lives + '   BOMB ' + player.bombs, x, 42, 15, '#EDF4FF', 'left', 211);
+      text(player.weapon + ' / LV.' + player.level + (player.lives <= 0 ? '  OFFLINE' : ''), x, 58, 12, tag, 'left');
     }
-    text('STAGE 0' + game.stage, 16, 787, 11, theme.accent, 'left');
-    text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 787, 10, '#8c9eb9');
-    text('HI ' + game.highScore, 464, 787, 11, '#8c9eb9', 'right');
+    text('STAGE 0' + game.stage, 16, 790, 11, '#8EA6C8', 'left');
+    text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 790, 11, '#8EA6C8');
+    text('HI ' + game.highScore, game.debug ? 348 : 464, 790, 11, '#8EA6C8', 'right');
   }
   if (game.state === 'menu') {
-    context.fillStyle = '#040919a8';
+    context.fillStyle = '#050914e6';
     context.fillRect(0, 0, 480, 800);
-    text('NV / ARCADE SYSTEM', 240, 151, 12, theme.accent);
-    text('NEON', 240, 232, 65, '#e9fbff');
-    text('VECTOR', 240, 289, 54, theme.accent);
+    text('NV / ARCADE SYSTEM', 240, 151, 12, '#8EA6C8');
+    text('NEON', 240, 232, 65, '#EDF4FF');
+    text('VECTOR', 240, 289, 54, '#38F2FF');
     text('霓 虹 航 线', 240, 328, 21, '#d2b8f6');
     for (let i = 0; i < 2; i++) {
       let y = 437 + i * 57;
       if (game.menu === i) {
-        context.fillStyle = theme.accent + '18';
+        context.fillStyle = '#38F2FF18';
         context.fillRect(85, y - 28, 310, 44);
-        context.strokeStyle = theme.accent;
+        context.strokeStyle = '#38F2FF';
         context.strokeRect(85, y - 28, 310, 44);
       }
-      text((game.menu === i ? '▸ ' : '  ') + (i ? '02   双人 / CO-OP' : '01   单人 / SOLO'), 240, y, 20, game.menu === i ? theme.accent : '#8493ae');
+      text((game.menu === i ? '▸ ' : '  ') + (i ? '02   双人 / CO-OP' : '01   单人 / SOLO'), 240, y, 20, game.menu === i ? '#38F2FF' : '#8EA6C8');
     }
     text('↑ ↓ / W S 选择 · ENTER / SPACE 确认', 240, 584, 12);
-    text('也可按 1 或 2 直接开始', 240, 610, 12, '#8c9eb9');
-    text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 638, 12, '#8c9eb9');
-    text('P1  WASD · SPACE · Q', 240, 672, 12, '#54eaff');
-    text('P2  方向键 · ENTER · 右 SHIFT', 240, 697, 12, '#ff65d8');
-    text('P / ESC 暂停     HI ' + game.highScore, 240, 752, 12, '#8c9eb9');
+    text('也可按 1 或 2 直接开始', 240, 610, 12, '#8EA6C8');
+    text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 638, 12, '#8EA6C8');
+    text('P1  WASD · SPACE · Q', 240, 672, 12, '#38F2FF');
+    text('P2  方向键 · ENTER · 右 SHIFT', 240, 697, 12, '#FF66C4');
+    text('P / ESC 暂停     HI ' + game.highScore, 240, 752, 12, '#8EA6C8');
   }
   if (['intro', 'clear', 'paused', 'gameover', 'victory'].includes(game.state)) {
-    context.fillStyle = '#030715b5';
+    context.fillStyle = '#050914cc';
     context.fillRect(0, 260, 480, 267);
     let title = {
       intro: 'STAGE 0' + game.stage,
@@ -272,7 +396,7 @@ NV.render = function (game) {
       gameover: 'SIGNAL LOST',
       victory: 'ALL 8 STAGES CLEAR'
     }[game.state];
-    text(title, 240, 349, game.state === 'victory' ? 29 : 38, theme.accent);
+    text(title, 240, 349, game.state === 'victory' ? 29 : 38, '#38F2FF');
     text({
       intro: theme.name,
       clear: '航线净空 · 下一关准备',
@@ -282,7 +406,7 @@ NV.render = function (game) {
     }[game.state], 240, 392, 15);
     if (game.state === 'gameover' || game.state === 'victory') {
       text('TOTAL SCORE  ' + game.players.reduce((totalScore, player) => totalScore + player.score, 0), 240, 437, 20);
-      text('ENTER / R 返回菜单', 240, 483, 14, '#92a8c6');
+      text('ENTER / R 返回菜单', 240, 483, 14, '#8EA6C8');
     }
   }
   if (game.flash > 0) {
@@ -290,43 +414,29 @@ NV.render = function (game) {
     context.fillRect(0, 0, 480, 800);
   }
   if (game.debug) {
-    text('DEBUG' + (game.god ? ' · GOD' : ''), 470, 766, 11, '#ffe27a', 'right');
+    text('DEBUG' + (game.god ? ' · GOD' : ''), 464, 790, 11, '#FFB833', 'right');
   }
 };
 
-// 固定数量的几何图元，无纹理分配；近景/远景使用不同滚动速度。
-NV.renderScene = function (game, c, t, theme) {
-  c.save(); c.lineWidth=1;
-  const stage=game.stage;
-  for (let i=0;i<24;i++) {
-    const x=(i*137+31)%480, y=(i*97+t*(18+i%3*12))%920-60;
-    c.fillStyle=theme.primary+'18'; c.strokeStyle=theme.accent+'38';
-    if (stage===1) {
-      c.beginPath(); c.ellipse(x,y,75+i%4*16,18+i%3*8,0,0,Math.PI*2); c.fill();
-      c.fillStyle=theme.highlight+'0c'; c.fillRect(x-90,y+10,180,3);
-    } else if (stage===2) {
-      c.beginPath(); c.moveTo(x-50,y); c.quadraticCurveTo(x,y-12,x+65,y); c.stroke();
-      if(i%4===0) {c.fillStyle=theme.secondary+'30';c.beginPath();c.moveTo(x,y-35);c.lineTo(x-14,y+35);c.lineTo(x+14,y+35);c.closePath();c.fill();c.fillRect(x-4,y-6,8,25);}
-    } else if (stage===3 || stage===4 || stage===5) {
-      const side=i%2 ? 480 : 0, width=40+(i*37)%85;
-      c.fillStyle=(stage===3 ? theme.secondary : theme.primary)+'28';
-      c.beginPath();c.moveTo(side,y-65);c.lineTo(side+(side?-1:1)*width,y-20);c.lineTo(side+(side?-1:1)*width*.7,y+65);c.lineTo(side,y+100);c.closePath();c.fill();c.stroke();
-      if(stage===4) {c.fillStyle=theme.highlight+'65';c.fillRect(x,y,2,3);}
-      if(stage===5) {c.strokeStyle=theme.highlight+'45';c.beginPath();c.moveTo(x,y);c.lineTo(x+20,y+35);c.lineTo(x-5,y+70);c.stroke();c.fillRect(x,y-15,2,4);}
-    } else if(stage===6) {
-      const bx=i%2 ? 365 : 8, h=60+i%4*23;
-      c.fillStyle=theme.primary+'17';c.fillRect(bx,y,100,h);c.strokeRect(bx,y,100,h);
-      c.fillStyle=theme.secondary+'50';for(let j=0;j<4;j++) c.fillRect(bx+12+j*21,y+15,7,3);
-    } else if(stage===7) {
-      c.beginPath();for(let j=0;j<7;j++) {const a=j*Math.PI*2/7,r=12+i%4*5;c.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r*.7);}c.closePath();c.fill();c.stroke();
-      c.strokeStyle=theme.secondary+'18';c.beginPath();c.moveTo(x+40,y-90);c.lineTo(x+55,y-140);c.stroke();
-    } else {
-      const bx=i%2?410:15;
-      c.fillStyle=theme.primary+'13';c.fillRect(bx,y,55,85);c.strokeRect(bx,y,55,85);
-      c.fillStyle=theme.secondary+'50';c.fillRect(bx+22,y,6,60);
-      for(let j=0;j<5;j++) {c.fillStyle=theme.accent+'25';c.fillRect(bx+5,y+j*14,44,3);}
-    }
+/* 柔和星云和竖向格线，没有描边椭圆，也没有横向硬边。 */
+NV.renderScene = function (game, c, t) {
+  c.save();
+  c.shadowBlur = 0;
+  c.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    const x = (i * 97 + 30) % 480;
+    const y = (i * 160 + t * 10) % 980 - 90;
+    c.fillStyle = 'rgba(14, 26, 46, 0.28)';
+    c.beginPath();
+    c.ellipse(x, y, 110, 42, 0, 0, Math.PI * 2);
+    c.fill();
   }
-  if(stage===8) {c.strokeStyle=theme.accent+'20';for(let i=0;i<9;i++) {const y=(i*110+t*40)%900;c.strokeRect(80,y,320,90);}}
+  c.strokeStyle = 'rgba(22, 38, 66, 0.22)';
+  c.beginPath();
+  for (let x = 48; x < 480; x += 48) {
+    c.moveTo(x, 64);
+    c.lineTo(x, 772);
+  }
+  c.stroke();
   c.restore();
 };

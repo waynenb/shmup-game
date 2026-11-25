@@ -1,18 +1,18 @@
 // 难度唯一配置入口；派生函数保持纯读取，平滑状态只由 updateDifficulty 推进。
 'use strict';
 NV.DIFFICULTY = {
-  // bullet.start/end 为后五关战斗压力区间（数量/移速/血量/射击使用同一连续曲线），
+  // bullet.start/end 为第 3 关起的战斗压力区间（第 3 关与 intensity 相同；数量/移速/血量/射击使用同一连续曲线），
   // fire 为编队开火间隔补偿（重型编队更大），cap 为普通敌机暂缓开火阈值；Boss 技能不截断。
   // 各关进度标尺：start/end、influence 为无单位强度，duration 为秒，waves 为波数，count 为每波数量倍率。
   stages: [
     {start:0,end:.28,duration:65,waves:12,count:1,influence:.1},
     {start:.30,end:.62,duration:60,waves:14,count:1,influence:.1},
-    {start:.70,end:1,duration:55,waves:16,count:1.15,influence:.2},
-    {start:1,end:1.02,bullet:{start:0.72,end:1.02,cap:124},duration:57,waves:17,count:1.15,influence:.2},
-    {start:1.02,end:1.04,bullet:{start:0.74,end:1.04,fire:1.45,lowFire:[1.35,1.43],cap:128},duration:59,waves:18,count:1.15,influence:.2},
-    {start:1.04,end:1.06,bullet:{start:0.76,end:1.06,fire:1.1,cap:132},duration:61,waves:19,count:1.15,influence:.2},
-    {start:1.06,end:1.08,bullet:{start:0.79,end:1.09,fire:1.15,lowFire:[1.08,1.08],cap:136},duration:63,waves:20,count:1.15,influence:.2},
-    {start:1.08,end:1.1,bullet:{start:0.80,end:1.10,fire:1.65,lowFire:[1.35,1.5],cap:140},duration:65,waves:21,count:1.15,influence:.2}
+    {start:.70,end:1,bullet:{start:.70,end:1,cap:48},duration:55,waves:16,count:1.15,influence:.2},
+    {start:1,end:1.02,bullet:{start:0.72,end:1.02,cap:56},duration:57,waves:17,count:1.15,influence:.2},
+    {start:1.02,end:1.04,bullet:{start:0.74,end:1.04,fire:1.45,lowFire:[1.35,1.43],cap:64},duration:59,waves:18,count:1.15,influence:.2},
+    {start:1.04,end:1.06,bullet:{start:0.76,end:1.06,fire:1.1,cap:72},duration:61,waves:19,count:1.15,influence:.2},
+    {start:1.06,end:1.08,bullet:{start:0.79,end:1.09,fire:1.15,lowFire:[1.08,1.08],cap:82},duration:63,waves:20,count:1.15,influence:.2},
+    {start:1.08,end:1.1,bullet:{start:0.80,end:1.10,fire:1.65,lowFire:[1.35,1.5],cap:92},duration:65,waves:21,count:1.15,influence:.2}
   ],
   // 强度插值的低/高端点：count 为架/波，waveInterval、fireInterval 为秒；speed、bulletSpeed 为像素/秒；hp、heavyHp 为生命值，volley 为发数，armed、dropRate 为概率。
   curve: {

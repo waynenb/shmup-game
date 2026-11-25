@@ -697,7 +697,19 @@ test('measured density fixture matches source and increases smoothly from stage 
   assert.deepEqual(measured.seeds,baseline.seeds);
   for(const profile of ['N1','S3']) {
     const rows=measured.profiles[profile],old=baseline.profiles[profile];
-    assert.deepEqual(rows.slice(0,3),old.slice(0,3),'Stages 1–3 density unchanged');
+    assert.deepEqual(rows.slice(0,2),old.slice(0,2),'Stages 1–2 density unchanged');
+    // Stage 3 now pauses ordinary fire at 48 visible bullets. The old fixture had no cap,
+    // so powered stage 3 sat near 100 bullets. Boss rows are unchanged because boss shots ignore the cap.
+    assert.equal(rows[2].boss, old[2].boss, 'Stage 3 boss density unchanged');
+    assert.ok(rows[2].middle > rows[1].middle, 'Stage 3 stays above stage 2');
+    if (profile === 'N1') {
+      assert.equal(rows[2].early, old[2].early);
+      assert.equal(rows[2].middle, old[2].middle);
+      assert.ok(rows[2].late < old[2].late && rows[2].late > old[1].late);
+    } else {
+      assert.ok(rows[2].middle < old[2].middle * .6, 'Powered stage 3 no longer holds about 100 bullets');
+      assert.ok(rows[2].late < old[2].late * .5);
+    }
     for(let i=3;i<8;i++) for(const key of ['early','middle','late','boss']) {
       const ratio=rows[i][key]/rows[i-1][key];
       assert.ok(ratio>=1 && ratio<=1.3,`${profile} stage ${i+1} ${key}: ${ratio}`);
@@ -928,6 +940,364 @@ test('audio unlock, independent shot throttles, bomb and tracks', () => {
   const pointer = load('', false, Audio);
   pointer.pointer();
   assert.equal(pointer.nv.audio.ready, true);
+});
+
+function trackCanvas(ctx) {
+  const arcs = [];
+  const labels = [];
+  const segments = [];
+  let x = 0;
+  let y = 0;
+  let px = 0;
+  let py = 0;
+  const stack = [];
+  ctx.save = () => stack.push([x, y]);
+  ctx.restore = () => {
+    const origin = stack.pop();
+    if (origin) [x, y] = origin;
+  };
+  ctx.translate = (dx, dy) => { x += dx; y += dy; };
+  ctx.arc = (ax, ay, radius, start, end) => arcs.push({ x: x + ax, y: y + ay, radius, start, end });
+  ctx.fillText = (text, tx, ty) => labels.push({ text, x: x + tx, y: y + ty });
+  ctx.moveTo = (mx, my) => { px = x + mx; py = y + my; };
+  ctx.lineTo = (lx, ly) => {
+    const nx = x + lx;
+    const ny = y + ly;
+    segments.push({ x0: px, y0: py, x1: nx, y1: ny });
+    px = nx;
+    py = ny;
+  };
+  return { arcs, labels, segments };
+}
+
+function shieldFragments(segments, originX, originY, reach = 16) {
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  return corners.map(([sx, sy]) => {
+    const x0 = originX + sx * 8;
+    const y0 = originY + sy * 8;
+    const midX = originX + sx * reach;
+    const midY = originY + sy * reach * 0.3;
+    const tipX = originX + sx * reach * 0.3;
+    const tipY = originY + sy * reach;
+    const first = segments.find(segment => Math.abs(segment.x0 - x0) < 1e-9 && Math.abs(segment.y0 - y0) < 1e-9);
+    const second = first && segments.find(segment => Math.abs(segment.x0 - first.x1) < 1e-9 && Math.abs(segment.y0 - first.y1) < 1e-9);
+    return !!(first && second
+      && Math.abs(first.x1 - midX) < 1e-9 && Math.abs(first.y1 - midY) < 1e-9
+      && Math.abs(second.x1 - tipX) < 1e-9 && Math.abs(second.y1 - tipY) < 1e-9);
+  }).filter(Boolean).length;
+}
+
+test('ordinary firing pauses at the stage cap and earlier stages stay uncapped', () => {
+  const caps = [undefined, undefined, 48, 56, 64, 72, 82, 92];
+  const { nv, game } = load('?debug=1&mode=1');
+  nv.DIFFICULTY.stages.forEach((stage, index) => {
+    assert.equal(stage.bullet ? stage.bullet.cap : undefined, caps[index]);
+  });
+  for (let index = 3; index < caps.length; index++) {
+    assert.ok(caps[index] > caps[index - 1] && caps[index] / caps[index - 1] <= 1.3);
+  }
+  const player = nv.DIFFICULTY.player;
+  assert.equal(player.lives, 10);
+  assert.equal(player.bombs, 3);
+  assert.equal(player.maxBombs, 5);
+  assert.equal(player.respawnBombs, 3);
+  assert.equal(player.invincible, 2.2);
+  assert.equal(player.shieldInvincible, 1);
+  assert.equal(player.bombDamage, 95);
+  assert.equal(player.bulletRadius, 2.5);
+  assert.equal(player.enemyRadius, 4);
+  function armedEnemy() {
+    nv.spawnEnemy(game, 0, 240);
+    const enemy = game.enemies[game.enemies.length - 1];
+    enemy.y = 120;
+    enemy.hp = enemy.maxHp = 100;
+    enemy.armed = true;
+    enemy.fire = 0;
+    return enemy;
+  }
+  nv.beginStage(game, 3);
+  game.state = 'playing';
+  armedEnemy();
+  for (let i = 0; i < 48; i++) nv.enemyBullet(game, 20 + i, -30, Math.PI / 2, 10, 4);
+  const capped = game.bullets.length;
+  nv.updateEnemies(game, 1 / 60);
+  assert.equal(game.bullets.length, capped, 'Stage 3 does not add a shot while 48 bullets exist');
+  game.bullets = game.bullets.slice(0, 20);
+  game.enemies[0].fire = 0;
+  nv.updateEnemies(game, 1 / 60);
+  assert.ok(game.bullets.length > 20, 'Stage 3 fires again after the field drops under the cap');
+  nv.beginStage(game, 1);
+  game.state = 'playing';
+  armedEnemy();
+  for (let i = 0; i < 80; i++) nv.enemyBullet(game, 10, -30, Math.PI / 2, 10, 4);
+  const open = game.bullets.length;
+  nv.updateEnemies(game, 1 / 60);
+  assert.ok(game.bullets.length > open, 'Stage 1 still fires with no cap');
+});
+
+test('respawn cue is born on the new ship while death sparks and rules stay put', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  const player = game.players[0];
+  Object.assign(player, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 0, lives: 10 });
+  game.enemies = [];
+  game.boss = null;
+  game.particles = [];
+  game.texts = [];
+  game.flash = 0;
+  game.bullets = [{ x: 180, y: 420, vx: 0, vy: 0, r: 4, col: '#ff657f' }];
+  game.update(1 / 60);
+  assert.equal(player.lives, 9);
+  assert.equal(player.level, 2);
+  assert.equal(player.bombs, 3);
+  assert.equal(player.x, 240);
+  assert.equal(player.y, 690);
+  assert.equal(player.invincible, 2.2);
+  assert.equal(player.shield, 0);
+  assert.equal(game.flash, 0);
+  assert.equal(nv.DIFFICULTY.player.invincible, 2.2);
+  assert.equal(nv.DIFFICULTY.player.shieldInvincible, 1);
+  assert.equal(nv.DIFFICULTY.player.respawnBombs, 3);
+  assert.equal(game.particles.filter(particle => particle.x === 180 && particle.y === 420).length, 35);
+  assert.equal(game.texts.length, 1);
+  assert.equal(game.texts[0].text, 'REBOOT / 重新出击');
+  assert.equal(game.texts[0].x, 240);
+  assert.equal(game.texts[0].y, 640);
+  assert.equal(game.cues.length, 1);
+  assert.deepEqual(
+    { kind: game.cues[0].kind, x: game.cues[0].x, y: game.cues[0].y, playerId: game.cues[0].playerId, life: game.cues[0].life },
+    { kind: 'respawn', x: 240, y: 690, playerId: 0, life: .8 }
+  );
+  const drawn = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.ok(drawn.arcs.some(arc => arc.x === 240 && arc.y === 690 && arc.end - arc.start === Math.PI * 2));
+  assert.equal(drawn.labels.some(label => label.text === 'P1 REBOOT'), false);
+  assert.equal(shieldFragments(drawn.segments, 240, 690), 0);
+  assert.equal(game.flash, 0);
+});
+
+test('shield break cue stays on that ship and does not use the respawn marker', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  const player = game.players[0];
+  Object.assign(player, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 12, lives: 10 });
+  game.particles = [];
+  game.texts = [];
+  game.flash = 0;
+  nv.hitPlayer(game, player);
+  assert.equal(player.lives, 10);
+  assert.equal(player.level, 3);
+  assert.equal(player.bombs, 5);
+  assert.equal(player.x, 180);
+  assert.equal(player.y, 420);
+  assert.equal(player.invincible, 1);
+  assert.equal(player.shield, 0);
+  assert.equal(game.particles.length, 25);
+  assert.ok(game.particles.every(particle => particle.x === 180 && particle.y === 420));
+  assert.equal(game.texts.length, 0);
+  assert.equal(game.cues.length, 1);
+  assert.equal(game.cues[0].kind, 'shield');
+  assert.equal(game.cues[0].x, 180);
+  assert.equal(game.cues[0].y, 420);
+  assert.equal(game.cues[0].playerId, 0);
+  assert.equal(game.flash, 0);
+  const drawn = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(drawn.arcs.some(arc => arc.x === 180 && arc.y === 420), false);
+  assert.equal(shieldFragments(drawn.segments, 180, 420), 4);
+  assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
+  assert.equal(drawn.labels.some(label => label.text.includes('REBOOT')), false);
+  player.lives = 1;
+  player.invincible = 0;
+  player.shield = 0;
+  nv.hitPlayer(game, player);
+  assert.equal(player.lives, 0);
+  assert.equal(player.x, 240);
+  assert.equal(player.y, 690);
+  assert.equal(game.cues.length, 1);
+  assert.equal(game.cues[0].kind, 'shield');
+  assert.equal(game.texts.at(-1).text, 'SIGNAL LOST');
+});
+
+test('shield fragments stay on the cue event and leave with its lifetime', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  const player = game.players[0];
+  Object.assign(player, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 12, lives: 10 });
+  game.particles = [];
+  game.bullets = [];
+  game.enemies = [];
+  game.boss = null;
+  nv.hitPlayer(game, player);
+  const cue = game.cues[0];
+  assert.equal(cue.kind, 'shield');
+  assert.equal(cue.playerId, 0);
+  assert.equal(cue.x, 180);
+  assert.equal(cue.y, 420);
+  assert.equal(cue.life, .8);
+  assert.equal(cue.max, .8);
+  const lives = game.particles.map(particle => particle.max);
+  assert.equal(lives.length, 25);
+  assert.ok(lives.every(life => life >= .25 && life <= .8));
+  const born = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(shieldFragments(born.segments, 180, 420, 16), 4);
+  assert.equal(born.arcs.some(arc => arc.x === 180 && arc.y === 420), false);
+  player.x = 300;
+  player.y = 500;
+  for (let step = 0; step < 24; step++) game.update(1 / 60);
+  assert.equal(game.cues.length, 1);
+  assert.equal(game.cues[0].x, 180);
+  assert.equal(game.cues[0].y, 420);
+  assert.equal(game.cues[0].playerId, 0);
+  const age = 1 - game.cues[0].life / game.cues[0].max;
+  const reach = 16 + age * 28;
+  const mid = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(shieldFragments(mid.segments, 180, 420, reach), 4);
+  assert.equal(shieldFragments(mid.segments, player.x, player.y, reach), 0);
+  let frame = 24;
+  while (game.cues.length && frame < 60) {
+    game.update(1 / 60);
+    frame++;
+  }
+  assert.equal(game.cues.length, 0);
+  assert.ok(frame <= 49);
+  const gone = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(shieldFragments(gone.segments, 180, 420, 16), 0);
+  assert.equal(shieldFragments(gone.segments, 180, 420, reach), 0);
+  assert.equal(game.particles.length, 0);
+  assert.equal(player.lives, 10);
+  assert.equal(player.level, 3);
+  assert.equal(player.bombs, 5);
+});
+
+test('cues follow the hit player, then expire, pause, and reset without sticking', () => {
+  const { nv, game } = load('?debug=1&mode=2');
+  game.state = 'playing';
+  const [first, second] = game.players;
+  Object.assign(first, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 12, lives: 10 });
+  Object.assign(second, { x: 100, y: 300, level: 3, bombs: 5, invincible: 0, shield: 0, lives: 10 });
+  game.particles = [];
+  game.bullets = [
+    { x: 180, y: 420, vx: 0, vy: 0, r: 4, col: '#ff657f' },
+    { x: 100, y: 300, vx: 0, vy: 0, r: 4, col: '#ff657f' }
+  ];
+  game.update(1 / 60);
+  assert.equal(first.lives, 10);
+  assert.equal(first.x, 180);
+  assert.equal(first.invincible, 1);
+  assert.equal(second.lives, 9);
+  assert.equal(second.level, 2);
+  assert.equal(second.bombs, 3);
+  assert.equal(second.x, 320);
+  assert.equal(second.y, 690);
+  assert.equal(second.invincible, 2.2);
+  assert.deepEqual(Array.from(game.cues, cue => [cue.kind, cue.playerId, cue.x, cue.y, cue.life]), [
+    ['shield', 0, 180, 420, .8],
+    ['respawn', 1, 320, 690, .8]
+  ]);
+  assert.equal(game.particles.filter(particle => particle.x === 180 && particle.y === 420).length, 25);
+  assert.equal(game.particles.filter(particle => particle.x === 100 && particle.y === 300).length, 35);
+  first.x = 400;
+  second.x = 200;
+  assert.equal(game.cues[0].x, 180);
+  assert.equal(game.cues[1].x, 320);
+  game.state = 'paused';
+  game.update(1);
+  assert.equal(game.cues[0].life, .8);
+  assert.equal(game.cues[1].life, .8);
+  game.state = 'playing';
+  game.bullets = [];
+  game.enemies = [];
+  game.boss = null;
+  game.update(.25);
+  assert.ok(Math.abs(game.cues[0].life - .55) < 1e-9);
+  assert.ok(Math.abs(game.cues[1].life - .55) < 1e-9);
+  assert.equal(game.cues[0].playerId, 0);
+  assert.equal(game.cues[1].playerId, 1);
+  const drawn = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
+  assert.equal(drawn.labels.some(label => label.text === 'P2 REBOOT'), false);
+  assert.ok(game.texts.some(message => message.text === 'REBOOT / 重新出击' && message.x === 320));
+  game.finish('gameover');
+  assert.equal(game.state, 'gameover');
+  assert.equal(game.cues.length, 0);
+  game.cue(10, 10, 1, 'respawn', '#fff');
+  game.start(1);
+  assert.equal(game.cues.length, 0);
+  assert.equal(game.mode, 1);
+  assert.equal(game.players.length, 1);
+  const alone = game.players[0];
+  alone.invincible = 2;
+  nv.hitPlayer(game, alone);
+  assert.equal(game.cues.length, 0);
+  game.god = true;
+  alone.invincible = 0;
+  nv.hitPlayer(game, alone);
+  assert.equal(game.cues.length, 0);
+  assert.equal(alone.lives, 10);
+});
+
+test('draw order keeps a solid enemy core and a continuous invincibility breath', () => {
+  const { nv, game } = load('?debug=1&mode=2');
+  game.state = 'playing';
+  game.players[0].shield = 12;
+  game.players[0].invincible = 0;
+  game.players[1].invincible = 2.2;
+  game.players[1].shield = 0;
+  nv.enemyBullet(game, 200, 400, Math.PI / 2, 10, 4);
+  game.bullets[0].homing = true;
+  for (const type of [0, 1, 2]) nv.spawnEnemy(game, type, 80 + type * 40);
+  const alphas = [];
+  const blurs = [];
+  let alpha = 1;
+  Object.defineProperty(game.ctx, 'globalAlpha', {
+    configurable: true,
+    get() { return alpha; },
+    set(value) { alpha = value; alphas.push(value); }
+  });
+  Object.defineProperty(game.ctx, 'shadowBlur', {
+    configurable: true,
+    get() { return 0; },
+    set(value) { blurs.push(value); }
+  });
+  const drawn = trackCanvas(game.ctx);
+  game.clock = 1 / 15;
+  nv.render(game);
+  const expected = .55 + .45 * (0.5 + 0.5 * Math.sin(game.clock * Math.PI * 3));
+  assert.ok(alphas.some(value => Math.abs(value - expected) < 1e-9));
+  assert.equal(alphas.includes(.3), false);
+  assert.ok(blurs.every(value => value <= 6));
+  assert.ok(drawn.arcs.some(arc => arc.x === 200 && arc.y === 400 && Math.abs(arc.radius - 4 * .42) < 1e-9));
+  assert.equal(game.players[0].x, 160);
+  assert.equal(game.players[1].x, 320);
+});
+
+test('bottom bar skips a low hull and debug does not sit on HI', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  game.players[0].x = 292.11;
+  game.players[0].y = 775;
+  game.players[0].invincible = 0;
+  game.highScore = 800;
+  game.debug = true;
+  const clips = [];
+  const rects = [];
+  const labels = [];
+  game.ctx.clip = mode => clips.push(mode || 'nonzero');
+  game.ctx.rect = (x, y, w, h) => rects.push({ x, y, w, h });
+  game.ctx.fillText = (s, x, y) => labels.push({ s, x, y });
+  nv.render(game);
+  assert.ok(clips.includes('evenodd'));
+  assert.ok(rects.some(rect => rect.y === 770 && Math.abs(rect.x - (292.11 - 26)) < 1e-9));
+  const hi = labels.find(label => String(label.s).startsWith('HI '));
+  const debug = labels.find(label => String(label.s).startsWith('DEBUG'));
+  assert.ok(hi && debug && hi.x < debug.x && hi.y === debug.y);
+  assert.equal(game.players[0].x, 292.11);
+  assert.equal(game.players[0].y, 775);
 });
 
 console.log(`\n${checks} offline simulation groups passed.`);

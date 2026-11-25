@@ -110,8 +110,9 @@ NV.updateStage = function (game, deltaTime) {
     if (player) NV.drop(game, player.x, player.y - 80, 'P');
     game.firstSupply = true;
   }
-  // 后五关持续补波到标尺结束前 8 秒，避免高火力下波次提前耗尽、后段空场。
-  if (game.stageTime > 2 && game.waveCharge >= 1 && (game.wave < c.waves || (game.stage > 3 && game.stageTime < c.duration - 8))) {
+  // 第 4–6 关补到 75%，第 7–8 关补到 78%，都早于原来的结束前 8 秒，给 Boss 前留出空隙。
+  const refillUntil = c.duration * (game.stage >= 7 ? .78 : .75);
+  if (game.stageTime > 2 && game.waveCharge >= 1 && (game.wave < c.waves || (game.stage > 3 && game.stageTime < refillUntil))) {
     game.waveCharge -= 1;
     let count = NV.smoothCount(d.count);
     for (let i = 0; i < count; i++) {
