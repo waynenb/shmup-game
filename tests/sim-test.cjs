@@ -1043,7 +1043,7 @@ test('respawn cue is born on the new ship while death sparks and rules stay put'
   const drawn = trackCanvas(game.ctx);
   nv.render(game);
   assert.ok(drawn.arcs.some(arc => arc.x === 240 && arc.y === 690 && arc.end - arc.start === Math.PI * 2));
-  assert.ok(drawn.labels.some(label => label.text === 'P1 REBOOT' && label.x === 240 && label.y === 738));
+  assert.ok(drawn.labels.some(label => label.text === 'P1 REBOOT' && label.x === 240 && label.y === 736));
   assert.equal(game.flash, 0);
 });
 
@@ -1074,9 +1074,7 @@ test('shield break cue stays on that ship and does not use the respawn marker', 
   assert.equal(game.flash, 0);
   const drawn = trackCanvas(game.ctx);
   nv.render(game);
-  const broken = drawn.arcs.filter(arc => arc.x === 180 && arc.y === 420 && arc.end - arc.start < Math.PI);
-  assert.equal(broken.length, 2);
-  assert.equal(drawn.arcs.some(arc => arc.x === 180 && arc.y === 420 && arc.end - arc.start === Math.PI * 2), false);
+  assert.equal(drawn.arcs.some(arc => arc.x === 180 && arc.y === 420), false);
   assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
   assert.equal(drawn.labels.some(label => label.text.includes('REBOOT')), false);
   player.lives = 1;
@@ -1138,7 +1136,7 @@ test('cues follow the hit player, then expire, pause, and reset without sticking
   const drawn = trackCanvas(game.ctx);
   nv.render(game);
   assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
-  assert.ok(drawn.labels.some(label => label.text === 'P2 REBOOT' && label.x === 320 && label.y === 738));
+  assert.ok(drawn.labels.some(label => label.text === 'P2 REBOOT' && label.x === 320 && label.y === 736));
   game.finish('gameover');
   assert.equal(game.state, 'gameover');
   assert.equal(game.cues.length, 0);
@@ -1156,6 +1154,41 @@ test('cues follow the hit player, then expire, pause, and reset without sticking
   nv.hitPlayer(game, alone);
   assert.equal(game.cues.length, 0);
   assert.equal(alone.lives, 10);
+});
+
+test('draw order keeps a solid enemy core and a continuous invincibility breath', () => {
+  const { nv, game } = load('?debug=1&mode=2');
+  game.state = 'playing';
+  game.players[0].shield = 12;
+  game.players[0].invincible = 0;
+  game.players[1].invincible = 2.2;
+  game.players[1].shield = 0;
+  nv.enemyBullet(game, 200, 400, Math.PI / 2, 10, 4);
+  game.bullets[0].homing = true;
+  for (const type of [0, 1, 2]) nv.spawnEnemy(game, type, 80 + type * 40);
+  const alphas = [];
+  const blurs = [];
+  let alpha = 1;
+  Object.defineProperty(game.ctx, 'globalAlpha', {
+    configurable: true,
+    get() { return alpha; },
+    set(value) { alpha = value; alphas.push(value); }
+  });
+  Object.defineProperty(game.ctx, 'shadowBlur', {
+    configurable: true,
+    get() { return 0; },
+    set(value) { blurs.push(value); }
+  });
+  const drawn = trackCanvas(game.ctx);
+  game.clock = 1 / 15;
+  nv.render(game);
+  const expected = .55 + .45 * (0.5 + 0.5 * Math.sin(game.clock * Math.PI * 3));
+  assert.ok(alphas.some(value => Math.abs(value - expected) < 1e-9));
+  assert.equal(alphas.includes(.3), false);
+  assert.ok(blurs.every(value => value <= 6));
+  assert.ok(drawn.arcs.some(arc => arc.x === 200 && arc.y === 400 && Math.abs(arc.radius - 4 * .42) < 1e-9));
+  assert.equal(game.players[0].x, 160);
+  assert.equal(game.players[1].x, 320);
 });
 
 console.log(`\n${checks} offline simulation groups passed.`);
