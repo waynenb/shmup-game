@@ -945,8 +945,11 @@ test('audio unlock, independent shot throttles, bomb and tracks', () => {
 function trackCanvas(ctx) {
   const arcs = [];
   const labels = [];
+  const segments = [];
   let x = 0;
   let y = 0;
+  let px = 0;
+  let py = 0;
   const stack = [];
   ctx.save = () => stack.push([x, y]);
   ctx.restore = () => {
@@ -956,7 +959,33 @@ function trackCanvas(ctx) {
   ctx.translate = (dx, dy) => { x += dx; y += dy; };
   ctx.arc = (ax, ay, radius, start, end) => arcs.push({ x: x + ax, y: y + ay, radius, start, end });
   ctx.fillText = (text, tx, ty) => labels.push({ text, x: x + tx, y: y + ty });
-  return { arcs, labels };
+  ctx.moveTo = (mx, my) => { px = x + mx; py = y + my; };
+  ctx.lineTo = (lx, ly) => {
+    const nx = x + lx;
+    const ny = y + ly;
+    segments.push({ x0: px, y0: py, x1: nx, y1: ny });
+    px = nx;
+    py = ny;
+  };
+  return { arcs, labels, segments };
+}
+
+function shieldFragments(segments, originX, originY) {
+  const reach = 16;
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  return corners.map(([sx, sy]) => {
+    const x0 = originX + sx * 8;
+    const y0 = originY + sy * 8;
+    const midX = originX + sx * reach;
+    const midY = originY + sy * reach * 0.3;
+    const tipX = originX + sx * reach * 0.3;
+    const tipY = originY + sy * reach;
+    const first = segments.find(segment => Math.abs(segment.x0 - x0) < 1e-9 && Math.abs(segment.y0 - y0) < 1e-9);
+    const second = first && segments.find(segment => Math.abs(segment.x0 - first.x1) < 1e-9 && Math.abs(segment.y0 - first.y1) < 1e-9);
+    return !!(first && second
+      && Math.abs(first.x1 - midX) < 1e-9 && Math.abs(first.y1 - midY) < 1e-9
+      && Math.abs(second.x1 - tipX) < 1e-9 && Math.abs(second.y1 - tipY) < 1e-9);
+  }).filter(Boolean).length;
 }
 
 test('ordinary firing pauses at the stage cap and earlier stages stay uncapped', () => {
@@ -1044,6 +1073,7 @@ test('respawn cue is born on the new ship while death sparks and rules stay put'
   nv.render(game);
   assert.ok(drawn.arcs.some(arc => arc.x === 240 && arc.y === 690 && arc.end - arc.start === Math.PI * 2));
   assert.equal(drawn.labels.some(label => label.text === 'P1 REBOOT'), false);
+  assert.equal(shieldFragments(drawn.segments, 240, 690), 0);
   assert.equal(game.flash, 0);
 });
 
@@ -1075,6 +1105,7 @@ test('shield break cue stays on that ship and does not use the respawn marker', 
   const drawn = trackCanvas(game.ctx);
   nv.render(game);
   assert.equal(drawn.arcs.some(arc => arc.x === 180 && arc.y === 420), false);
+  assert.equal(shieldFragments(drawn.segments, 180, 420), 4);
   assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
   assert.equal(drawn.labels.some(label => label.text.includes('REBOOT')), false);
   player.lives = 1;
