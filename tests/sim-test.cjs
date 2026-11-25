@@ -970,8 +970,7 @@ function trackCanvas(ctx) {
   return { arcs, labels, segments };
 }
 
-function shieldFragments(segments, originX, originY) {
-  const reach = 16;
+function shieldFragments(segments, originX, originY, reach = 16) {
   const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
   return corners.map(([sx, sy]) => {
     const x0 = originX + sx * 8;
@@ -1118,6 +1117,60 @@ test('shield break cue stays on that ship and does not use the respawn marker', 
   assert.equal(game.cues.length, 1);
   assert.equal(game.cues[0].kind, 'shield');
   assert.equal(game.texts.at(-1).text, 'SIGNAL LOST');
+});
+
+test('shield fragments stay on the cue event and leave with its lifetime', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  const player = game.players[0];
+  Object.assign(player, { x: 180, y: 420, level: 3, bombs: 5, invincible: 0, shield: 12, lives: 10 });
+  game.particles = [];
+  game.bullets = [];
+  game.enemies = [];
+  game.boss = null;
+  nv.hitPlayer(game, player);
+  const cue = game.cues[0];
+  assert.equal(cue.kind, 'shield');
+  assert.equal(cue.playerId, 0);
+  assert.equal(cue.x, 180);
+  assert.equal(cue.y, 420);
+  assert.equal(cue.life, .8);
+  assert.equal(cue.max, .8);
+  const lives = game.particles.map(particle => particle.max);
+  assert.equal(lives.length, 25);
+  assert.ok(lives.every(life => life >= .25 && life <= .8));
+  const born = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(shieldFragments(born.segments, 180, 420, 16), 4);
+  assert.equal(born.arcs.some(arc => arc.x === 180 && arc.y === 420), false);
+  player.x = 300;
+  player.y = 500;
+  for (let step = 0; step < 24; step++) game.update(1 / 60);
+  assert.equal(game.cues.length, 1);
+  assert.equal(game.cues[0].x, 180);
+  assert.equal(game.cues[0].y, 420);
+  assert.equal(game.cues[0].playerId, 0);
+  const age = 1 - game.cues[0].life / game.cues[0].max;
+  const reach = 16 + age * 28;
+  const mid = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(shieldFragments(mid.segments, 180, 420, reach), 4);
+  assert.equal(shieldFragments(mid.segments, player.x, player.y, reach), 0);
+  let frame = 24;
+  while (game.cues.length && frame < 60) {
+    game.update(1 / 60);
+    frame++;
+  }
+  assert.equal(game.cues.length, 0);
+  assert.ok(frame <= 49);
+  const gone = trackCanvas(game.ctx);
+  nv.render(game);
+  assert.equal(shieldFragments(gone.segments, 180, 420, 16), 0);
+  assert.equal(shieldFragments(gone.segments, 180, 420, reach), 0);
+  assert.equal(game.particles.length, 0);
+  assert.equal(player.lives, 10);
+  assert.equal(player.level, 3);
+  assert.equal(player.bombs, 5);
 });
 
 test('cues follow the hit player, then expire, pause, and reset without sticking', () => {
