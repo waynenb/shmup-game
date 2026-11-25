@@ -1043,7 +1043,7 @@ test('respawn cue is born on the new ship while death sparks and rules stay put'
   const drawn = trackCanvas(game.ctx);
   nv.render(game);
   assert.ok(drawn.arcs.some(arc => arc.x === 240 && arc.y === 690 && arc.end - arc.start === Math.PI * 2));
-  assert.ok(drawn.labels.some(label => label.text === 'P1 REBOOT' && label.x === 240 && label.y === 736));
+  assert.equal(drawn.labels.some(label => label.text === 'P1 REBOOT'), false);
   assert.equal(game.flash, 0);
 });
 
@@ -1136,7 +1136,8 @@ test('cues follow the hit player, then expire, pause, and reset without sticking
   const drawn = trackCanvas(game.ctx);
   nv.render(game);
   assert.ok(drawn.labels.some(label => label.text === 'P1 SHIELD BREAK' && label.x === 180 && label.y === 374));
-  assert.ok(drawn.labels.some(label => label.text === 'P2 REBOOT' && label.x === 320 && label.y === 736));
+  assert.equal(drawn.labels.some(label => label.text === 'P2 REBOOT'), false);
+  assert.ok(game.texts.some(message => message.text === 'REBOOT / 重新出击' && message.x === 320));
   game.finish('gameover');
   assert.equal(game.state, 'gameover');
   assert.equal(game.cues.length, 0);
@@ -1189,6 +1190,30 @@ test('draw order keeps a solid enemy core and a continuous invincibility breath'
   assert.ok(drawn.arcs.some(arc => arc.x === 200 && arc.y === 400 && Math.abs(arc.radius - 4 * .42) < 1e-9));
   assert.equal(game.players[0].x, 160);
   assert.equal(game.players[1].x, 320);
+});
+
+test('bottom bar skips a low hull and debug does not sit on HI', () => {
+  const { nv, game } = load('?debug=1&mode=1');
+  game.state = 'playing';
+  game.players[0].x = 292.11;
+  game.players[0].y = 775;
+  game.players[0].invincible = 0;
+  game.highScore = 800;
+  game.debug = true;
+  const clips = [];
+  const rects = [];
+  const labels = [];
+  game.ctx.clip = mode => clips.push(mode || 'nonzero');
+  game.ctx.rect = (x, y, w, h) => rects.push({ x, y, w, h });
+  game.ctx.fillText = (s, x, y) => labels.push({ s, x, y });
+  nv.render(game);
+  assert.ok(clips.includes('evenodd'));
+  assert.ok(rects.some(rect => rect.y === 770 && Math.abs(rect.x - (292.11 - 26)) < 1e-9));
+  const hi = labels.find(label => String(label.s).startsWith('HI '));
+  const debug = labels.find(label => String(label.s).startsWith('DEBUG'));
+  assert.ok(hi && debug && hi.x < debug.x && hi.y === debug.y);
+  assert.equal(game.players[0].x, 292.11);
+  assert.equal(game.players[0].y, 775);
 });
 
 console.log(`\n${checks} offline simulation groups passed.`);

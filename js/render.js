@@ -262,8 +262,8 @@ NV.render = function (game) {
   }
   for (let cue of game.cues) {
     let age = 1 - cue.life / cue.max;
-    let label = cue.kind === 'shield' ? 'P' + (cue.playerId + 1) + ' SHIELD BREAK' : 'P' + (cue.playerId + 1) + ' REBOOT';
-    let labelY = floatY(cue.y + (cue.kind === 'shield' ? -46 : 48));
+    let label = cue.kind === 'shield' ? 'P' + (cue.playerId + 1) + ' SHIELD BREAK' : '';
+    let labelY = floatY(cue.y - 46);
     context.save();
     context.translate(cue.x, cue.y);
     context.lineWidth = 2;
@@ -290,8 +290,10 @@ NV.render = function (game) {
       context.stroke();
       context.setLineDash([]);
     }
-    context.globalAlpha = Math.max(0, 1 - age);
-    text(label, NV.clamp(cue.x, 96, 384) - cue.x, labelY - cue.y, 16, cue.col);
+    if (label) {
+      context.globalAlpha = Math.max(0, 1 - age);
+      text(label, NV.clamp(cue.x, 96, 384) - cue.x, labelY - cue.y, 16, cue.col);
+    }
     context.restore();
   }
   context.globalAlpha = 1;
@@ -334,10 +336,21 @@ NV.render = function (game) {
   if (game.state !== 'menu') {
     context.fillStyle = 'rgba(6, 11, 23, 0.88)';
     context.fillRect(0, 0, 480, 64);
+    context.save();
+    context.beginPath();
+    context.rect(0, 772, 480, 28);
+    for (let player of game.players) {
+      if (player.lives > 0 && player.y + 26 >= 772 && player.y - 24 <= 800) {
+        context.rect(player.x - 26, 770, 52, 32);
+      }
+    }
+    context.clip('evenodd');
     context.fillRect(0, 772, 480, 28);
     context.fillStyle = '#1F3354';
-    context.fillRect(0, 64, 480, 1);
     context.fillRect(0, 772, 480, 1);
+    context.restore();
+    context.fillStyle = '#1F3354';
+    context.fillRect(0, 64, 480, 1);
     for (let player of game.players) {
       let x = player.id ? 253 : 16;
       let tag = player.id ? '#FF66C4' : '#38F2FF';
@@ -347,7 +360,7 @@ NV.render = function (game) {
     }
     text('STAGE 0' + game.stage, 16, 790, 11, '#8EA6C8', 'left');
     text('M: SOUND ' + (NV.audio.muted ? 'OFF' : 'ON'), 240, 790, 11, '#8EA6C8');
-    text('HI ' + game.highScore, 464, 790, 11, '#8EA6C8', 'right');
+    text('HI ' + game.highScore, game.debug ? 348 : 464, 790, 11, '#8EA6C8', 'right');
   }
   if (game.state === 'menu') {
     context.fillStyle = '#050914e6';
