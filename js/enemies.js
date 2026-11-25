@@ -40,7 +40,8 @@ NV.updateEnemies = function (game, deltaTime) {
       enemy.x = NV.clamp(enemy.baseX + drift,25,455);
     }
     enemy.fire -= deltaTime;
-    if (enemy.armed && enemy.fire <= 0 && enemy.y > 10 && (game.stage <= 3 || game.bullets.length < NV.DIFFICULTY.stages[game.stage-1].bullet.cap)) {
+    const pauseAt = NV.DIFFICULTY.stages[game.stage - 1].bullet?.cap;
+    if (enemy.armed && enemy.fire <= 0 && enemy.y > 10 && (pauseAt === undefined || game.bullets.length < pauseAt)) {
       enemy.fire = d.fireInterval * NV.enemyFireScale(game) * (enemy.type === 2 ? c.heavyFire : 1);
       let player = game.players.reduce((nearest, candidate) => {
         if (candidate.lives <= 0) return nearest;

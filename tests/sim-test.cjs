@@ -697,7 +697,19 @@ test('measured density fixture matches source and increases smoothly from stage 
   assert.deepEqual(measured.seeds,baseline.seeds);
   for(const profile of ['N1','S3']) {
     const rows=measured.profiles[profile],old=baseline.profiles[profile];
-    assert.deepEqual(rows.slice(0,3),old.slice(0,3),'Stages 1–3 density unchanged');
+    assert.deepEqual(rows.slice(0,2),old.slice(0,2),'Stages 1–2 density unchanged');
+    // Stage 3 now pauses ordinary fire at 48 visible bullets. The old fixture had no cap,
+    // so powered stage 3 sat near 100 bullets. Boss rows are unchanged because boss shots ignore the cap.
+    assert.equal(rows[2].boss, old[2].boss, 'Stage 3 boss density unchanged');
+    assert.ok(rows[2].middle > rows[1].middle, 'Stage 3 stays above stage 2');
+    if (profile === 'N1') {
+      assert.equal(rows[2].early, old[2].early);
+      assert.equal(rows[2].middle, old[2].middle);
+      assert.ok(rows[2].late < old[2].late && rows[2].late > old[1].late);
+    } else {
+      assert.ok(rows[2].middle < old[2].middle * .6, 'Powered stage 3 no longer holds about 100 bullets');
+      assert.ok(rows[2].late < old[2].late * .5);
+    }
     for(let i=3;i<8;i++) for(const key of ['early','middle','late','boss']) {
       const ratio=rows[i][key]/rows[i-1][key];
       assert.ok(ratio>=1 && ratio<=1.3,`${profile} stage ${i+1} ${key}: ${ratio}`);
@@ -946,6 +958,54 @@ function trackCanvas(ctx) {
   ctx.fillText = (text, tx, ty) => labels.push({ text, x: x + tx, y: y + ty });
   return { arcs, labels };
 }
+
+test('ordinary firing pauses at the stage cap and earlier stages stay uncapped', () => {
+  const caps = [undefined, undefined, 48, 56, 64, 72, 82, 92];
+  const { nv, game } = load('?debug=1&mode=1');
+  nv.DIFFICULTY.stages.forEach((stage, index) => {
+    assert.equal(stage.bullet ? stage.bullet.cap : undefined, caps[index]);
+  });
+  for (let index = 3; index < caps.length; index++) {
+    assert.ok(caps[index] > caps[index - 1] && caps[index] / caps[index - 1] <= 1.3);
+  }
+  const player = nv.DIFFICULTY.player;
+  assert.equal(player.lives, 10);
+  assert.equal(player.bombs, 3);
+  assert.equal(player.maxBombs, 5);
+  assert.equal(player.respawnBombs, 3);
+  assert.equal(player.invincible, 2.2);
+  assert.equal(player.shieldInvincible, 1);
+  assert.equal(player.bombDamage, 95);
+  assert.equal(player.bulletRadius, 2.5);
+  assert.equal(player.enemyRadius, 4);
+  function armedEnemy() {
+    nv.spawnEnemy(game, 0, 240);
+    const enemy = game.enemies[game.enemies.length - 1];
+    enemy.y = 120;
+    enemy.hp = enemy.maxHp = 100;
+    enemy.armed = true;
+    enemy.fire = 0;
+    return enemy;
+  }
+  nv.beginStage(game, 3);
+  game.state = 'playing';
+  armedEnemy();
+  for (let i = 0; i < 48; i++) nv.enemyBullet(game, 20 + i, -30, Math.PI / 2, 10, 4);
+  const capped = game.bullets.length;
+  nv.updateEnemies(game, 1 / 60);
+  assert.equal(game.bullets.length, capped, 'Stage 3 does not add a shot while 48 bullets exist');
+  game.bullets = game.bullets.slice(0, 20);
+  game.enemies[0].fire = 0;
+  nv.updateEnemies(game, 1 / 60);
+  assert.ok(game.bullets.length > 20, 'Stage 3 fires again after the field drops under the cap');
+  nv.beginStage(game, 1);
+  game.state = 'playing';
+  armedEnemy();
+  for (let i = 0; i < 80; i++) nv.enemyBullet(game, 10, -30, Math.PI / 2, 10, 4);
+  const open = game.bullets.length;
+  nv.updateEnemies(game, 1 / 60);
+  assert.ok(game.bullets.length > open, 'Stage 1 still fires with no cap');
+});
 
 test('respawn cue is born on the new ship while death sparks and rules stay put', () => {
   const { nv, game } = load('?debug=1&mode=1');
